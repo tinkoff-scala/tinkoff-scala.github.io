@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    
+    <title>Lecture 01 - Scala Basics</title>
+  <script type="module" crossorigin src="/assets/vendor.ddd8df57.js"></script>
+  <script type="module" crossorigin src="/assets/main.467d0acf.js"></script>
+  <link rel="stylesheet" href="/assets/main.5ea68116.css">
+</head>
+<body>
+<div class="reveal">
+    <div class="slides">
+        <!--Intro-->
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## Scala Basics
+
+                    Lecture 01
+                </textarea>
+            </section>
+        </section>
+
+        <!--Who are we-->
+        <section>
+            <section data-markdown>
+						<textarea data-template>
+							## Who are we?
+							- Ivan Lyagaev - Lecturer
+								- i.lyagaev@tinkoff.ru
+							- Nikita Vilyunov - Lecturer
+								- n.vilyunov@tinkoff.ru
+							- Nikita Kalinskiy - Teaching Assistant
+								- n.kalinskiy@tinkoff.ru
+						</textarea>
+            </section>
+            <section>
+                <img src="/assets/business-logo.24deb2b8.webp">
+            </section>
+            <section>
+                <h2>What we do?</h2>
+                <ul>
+                    <li class="fragment" data-fragment-index="1">Work in Tinkoff Business</li>
+                    <li class="fragment" data-fragment-index="3">Develop backend applications in Scala</li>
+                </ul>
+            </section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## Tinkoff Business
+
+                    - Is a part of Tinkoff Ecosystem
+                    - Online Banking for Small-Medium Enterprises (SMEs)
+
+                    ---
+
+                    ## Settlement and Cash Services
+
+                    - Расчетно-Кассовое Обслуживание (РКО)
+                    - Separate department of Tinkoff Business dedicated to financial operations
+                    - Making payments, receiving payments and so on
+
+                    ---
+
+                    ## Operation Feed & Accounts
+                    - Лента Операций & Счета
+                    - Developed by Nikita Kalinskiy
+                    - Everything that is connected to viewing accounts and their operations
+
+                    ---
+
+                    ## Ruble Payments
+                    - Рублевые Платежи
+                    - Developed by Nikita Vilunov
+                    - Everything that is connected to making payments in rubles
+                    ---
+
+                    ## Foreign Activity
+                    - Внешняя Экономическая Деятельность (ВЭД)
+                    - Developed by Ivan Lyagaev
+                    - Everything that is connected to foreign activity, making payments to non-residents and
+                    exchanging currency
+                </textarea>
+            </section>
+        </section>
+
+        <section>
+            <section>
+                <h2>Course</h2>
+                <p class="fragment r-fit-text">Introduction to Functional Programming and Scala
+                    Language</p>
+            </section>
+            <section>
+                <p class="fragment">Why did you choose this course?</p>
+                <p class="fragment">What are your expectations about this course?</p>
+            </section>
+            <section>
+                <h2>Course Structure</h2>
+                <p class="fragment" data-fragment-index="1">The course will consist of 3 blocks (or main themes):</p>
+                <ol>
+                    <li class="fragment" data-fragment-index="2">Scala: Syntax and Standard Library</li>
+                    <li class="fragment" data-fragment-index="3">Concurrent Programming</li>
+                    <li class="fragment" data-fragment-index="4">Functional Programming</li>
+                </ol>
+            </section>
+            <section>
+                <h2>Grading</h2>
+                <ol>
+                    <li class="fragment" data-fragment-index="1">Labs - 20%</li>
+                    <li class="fragment" data-fragment-index="2">Individual Projects - 40%</li>
+                    <li class="fragment" data-fragment-index="3">Midterm Exam - 15%</li>
+                    <li class="fragment" data-fragment-index="4">Final Exam - 25%</li>
+                </ol>
+            </section>
+            <section>
+                <h2>Timeline</h2>
+                <ul>
+                    <li class="fragment" data-fragment-index="1">Every lab class there will be a lab exercise with week
+                        deadline
+                    </li>
+                    <li class="fragment" data-fragment-index="2">Individual Projects will be held after Midterm</li>
+                    <li class="fragment" data-fragment-index="3">Best effort for grading</li>
+                </ul>
+            </section>
+            <section>
+                <h2>Resources - Books</h2>
+            </section>
+            <section>
+                <img class="r-stretch" src="/assets/programming-in-scala.4d6181b8.jpg">
+                <p><b>Programming in Scala, Fourth Edition</b>: Martin Odersky, Lex Spoon, Bill Venners</p>
+            </section>
+            <section>
+                <img class="r-stretch" src="/assets/functional-programmin-in-scala.a2c77274.png">
+                <p><b>Functional Programming in Scala</b>: Paul Chiusano, Runar Bjarnason</p>
+            </section>
+            <section>
+                <h2>Resources - Courses</h2>
+                <ul>
+                    <li>
+                        <a href="https://www.coursera.org/learn/scala-functional-programming">
+                            Functional Programming Principles in Scala
+                        </a> by Martin Odersky
+                    </li>
+                    <li>
+                        <a href="https://stepik.org/course/16243/promo">
+                            Introduction to Scala (in Russian)
+                        </a> by Oleg Nizhnikov
+                    </li>
+                </ul>
+            </section>
+            <section>
+                <h2>Resources - Telegram</h2>
+                <ul>
+                    <li>Scala User Group: <a href="https://t.me/scala_ru">https://t.me/scala_ru</a></li>
+                    <li>Scala Learn: <a href="https://t.me/scala_learn">https://t.me/scala_learn</a></li>
+                </ul>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## Java Recall
+
+                    Let's recall Java and OOP
+
+                    ---
+                    ### Classes
+
+                    - Main element of Object Oriented Paradigm (OOP) is __Class__
+                    - Class encapsulates the state in terms of variables and behaviour in terms of methods
+
+                    ```java [1-11|2|4]
+                    public class Hello {
+                    	private String greeting;
+
+                    	public String makeGreeting() {
+                    		return greeting;
+                        }
+
+                        public Hello(String greetingArg) {
+                    		this.greeting = greetingArg;
+                        }
+                    }
+                    ```
+                    ---
+
+                    ### Objects
+
+                    - Class produces objects acting like a blueprint
+                    - Each object has its own state (set of variables) and methods that modify the state
+
+                    ```java [1-5|1,4|2,5]
+                    Hello objectOne = new Hello("privet!");
+                    Hello objectTwo = new Hello("hi!");
+
+                    System.out.println(objectOne.makeGreeting());
+                    System.out.println(objectTwo.makeGreeting());
+                    ```
+
+                    ---
+
+                    ### Constructors
+
+                    - Objects are created through special methods called constructors. Class can have several
+                    constructors.
+                    - These special methods have the same name as the class, they are creating.
+
+                    ---
+
+                    - Let's define a new class - `MultiHello`
+
+                    ```java
+                    public class MultiHello {
+                        private String greetingRussian;
+                        private String greetingEnglish;
+
+                        public void makeGreeting() {
+                            System.out.println(greetingRussian);
+                            System.out.println(greetingEnglish);
+                        }
+                    ...
+                    ```
+                    ---
+
+                    - It will have two constructors
+                    - Each constructor with its own set of arguments
+
+                    ```java
+                    ...
+                        public MultiHello() {
+                            this("privet!", "hi!");
+                        }
+
+                        public MultiHello(String russian, String english) {
+                            this.greetingRussian = russian;
+                            this.greetingEnglish = english;
+                        }
+                    }
+                    ```
+                    ---
+
+                    - We can construct objects using any of them.
+
+                    ```java [1-5]
+                    MultiHello throughFirst = new MultiHello();
+                    MultiHello throughSecond = new MultiHello(
+                        "zdarova!",
+                        "hello!"
+                    );
+                    ```
+                    ---
+
+                    ### Static Scope
+
+                    - Methods and variables can be static
+                    - In other words, they are unique for each class
+
+                    ```java [1-15]
+                    public class Earth {
+                        public static double G = 9.8
+
+                        public static double velocity(double time) {
+                            return time * G;
+                        }
+                    }
+                    ```
+
+                    ---
+
+                    - They can be called without object creation
+
+                    ```java [1-1]
+                    double time = Earth.velocity(1) / Earth.G;
+                    ```
+
+                    ---
+
+                    ### Inheritance
+
+                    - Classes can form hierarchies through inheritance
+                    - This concept allows propagation of the certain state and behaviour from parent classes
+                    to their children, while specializing them for the children
+
+                    ---
+
+                    - Let's define a small hierarchy of Animals
+                    - We will have **`Animal`** as our parent class
+                    - It defines an abstract method **`makeSound`** that must be implemented
+                    by all inherited classes
+
+                    ```java [1-4]
+                    public abstract class Animal {
+                        // No `{}` - means no body. Method is abstract
+                        public void makeSound()
+                    }
+                    ```
+
+                    ---
+
+                    - Let's define two new classes that inherit the **`Animal`** class: **`Cat`** and **`Dog`**
+                    - Both of them have **`makeSound`** method with unique implementation
+
+                    ```java [1-11]
+                    public class Dog extends Animal {
+                        override public void makeSound() {
+                            System.out.println("woof");
+                        }
+                    }
+
+                    public class Cat extends Animal {
+                        override public void makeSound() {
+                            System.out.println("meow");
+                        }
+                    }
+                    ```
+
+                    ---
+
+                    - All children classes of **`Animal`** are in fact Animals
+                    - **`Dog`** is **`Animal`** and can be used as **`Animal`** object
+                    - **`Cat`** is **`Animal`** and can be used as **`Animal`** objec
+                    - This ability of the objects is called **_polymorphism_**
+
+                    ```java [1-15]
+                    public class Program {
+                        public static void animalMakeSound(Animal animal) {
+                            animal.makeSound();
+                        }
+
+                        public static void main(String[] args) {
+                            animalMakeSound(new Dog());
+                            animalMakeSound(new Cat());
+                        }
+                    }
+                    ```
+
+                    ---
+                    ### Memory Model
+
+                    - Two types of values: primitives (int, short, long, etc.) and objects (set of variables and methods)
+
+                    ```java [1-15]
+                    int primitiveOne = 1;
+                    double primitiveTwo = 2;
+
+                    String object = "one";
+                    Cat cat = new Cat();
+                    Dog dog = new Dog();
+                    ```
+
+                    ---
+
+                    - Two types of memory spaces: stack and heap.
+                    - Primitives have a specific size (number of bytes) and are stored in stack memory
+                    - Objects have an unknown size (number of bytes) and are stored in heap memory
+
+                    ---
+
+                    - Variables are stored on stack
+                    - If variable is a primitive, then variable holds the primitive value
+                    - If variable is an object, then variable holds a reference to an object
+                    - Reference is unique pointer to the heap, where the actual object is stored
+
+                    ---
+                    - Variables hold stack memory as long as they are used
+                    - So stack it growing and shrinks during program execution
+                    - And what is happening with the heap memory?
+
+                    ---
+                    - Heap memory is periodically cleaned by the special runtime process called - **_garbage collector_**
+                    - It scans objects on heap and if an object has no references to itself, then the memory
+                    is freed
+                    ---
+
+                    ### JVM
+
+                    - Java programs are executed on the Java Virtual Machine (JVM)
+                    - JVM allows running Java programs on different operating systems and processor architectures
+                    - Programs are compiled to special low-level instructions - Java Bytecode.
+                    - JVM interprets/executes these instructions on the concrete platform
+
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section>
+                <h2>What is Scala?</h2>
+                <p>Scala is a multi-paradigm programming language</p>
+            </section>
+            <section>
+                <p>One paradigm - Object Oriented Programming or OOP.</p>
+                <p>In OOP everything is an object - state and its behaviour</p>
+            </section>
+            <section>
+                <p>Other paradigm - Functional Programming or FP</p>
+                <p>In FP everything is a value or a function</p>
+            </section>
+            <section>
+                <h3>Why use Scala?</h3>
+                <ul>
+                    <li class="fragment" data-fragment-index="1">
+                        Physical limits of single CPU processing. All CPUs today
+                        have multiple cores, that are needed to be used.
+                    </li>
+                    <li class="fragment" data-fragment-index="2">
+                        Business has a need in creating complex, stable and
+                        maintainable applications.
+                    </li>
+                </ul>
+            </section>
+            <section>
+                <h3>Scala Advantages</h3>
+                <ul>
+                    <li class="fragment" data-fragment-index="1">
+                        Conciseness — better maintainability
+                    </li>
+                    <li class="fragment" data-fragment-index="2">
+                        Rich type system
+                    </li>
+                    <li class="fragment" data-fragment-index="3">
+                        Interoperability with Java
+                    </li>
+                </ul>
+            </section>
+            <section>
+                <h3>Complex Concurrent Systems</h3>
+                <p>Scala has a great type system that allowed to implement all kinds of approaches to concurrency:</p>
+                <ul>
+                    <li>Actor model</li>
+                    <li>Futures</li>
+                    <li>Green Threads</li>
+                </ul>
+                <p>All of them enable a rather simple approach to concurrent programming</p>
+            </section>
+            <section>
+                <h3>Interoperability with Java</h3>
+                <p>Scala is executed on Java Virtual Machine (JVM)</p>
+            </section>
+            <section>
+                <p>Scala provides full interoperability with Java: </p>
+                <ul>
+                    <li>Ability to use / call any Java code from Scala code</li>
+                    <li>Ability to use compiled Java libraries</li>
+                    <li>Ability to call Scala code from Java</li>
+                </ul>
+            </section>
+            <section>
+                <p>Thus, whole Java ecosystem can be reused in Scala</p>
+            </section>
+            <section>
+                <h3>Where Scala can be applied?</h3>
+                <ul>
+                    <li class="fragment" data-fragment-index="1">Main area - creating complex concurrent backend
+                        (web-server) applications
+                    </li>
+                    <li class="fragment" data-fragment-index="2">Can be used for creating frontend application using
+                        Scala.js
+                    </li>
+                    <li class="fragment" data-fragment-index="3">Spark - platform for distributed computations on Big
+                        Data
+                    </li>
+                </ul>
+            </section>
+            <section>
+                <p>However, Scala.js and Spark will not be covered in this course</p>
+                <p>Main focus - backend applications</p>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+				<textarea data-template>
+                    ### Expressions
+
+                    In Scala everything is an expression
+                    ---
+
+                    ```scala
+                    1 + 1 // returns Int
+                    ```
+
+                    - This is an expression of type __`Int`__
+                    - This is also an expression but of different type - __`Double`__
+
+                    ```scala
+                    1 / 2 // returns Double
+                    ```
+
+                    ---
+                    ```scala
+                    var x: Int = 1 + 1 // returns Unit
+                    ```
+                    - This is a statement.
+                    - Statement is an expression with special type called __`Unit`__.
+
+                    ---
+
+                    ```scala
+                    var x: Unit = ()
+                    ```
+
+                    - __`Unit`__ is a type that has only one abstract value.
+                    - This value has a special alias - `()`.
+                    - Similar semantics to `void` in Java.
+
+                    ---
+
+                    ```scala
+                    var x: Int = <Expression>
+                    ```
+
+                    - Right side of variable assignment waits for an expression of some type.
+                    - In case of `1 + 1`, expression is of type Int, thus the variable `x` also will have a type Int
+
+                    ```scala
+                    var x: Int = 1 + 1
+                    ```
+                    ---
+
+                    - Scala compiler is smart.
+                    - We can omit the explicit type declaration of the variable where the compiler can deduce the concrete type of the expression.
+                    - This process is called **type inference**:
+
+                    ```scala [1-4]
+                    // x has the type Int
+                    var x = 1 + 1
+                    // y also has the type Int
+                    var y = x
+                    ```
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+				<textarea data-template>
+                    ### Variables
+                    ---
+
+                    - __Variables__ are the same as in other programming languages
+                    - They can be declared (using __`var`__) and initialized
+
+                    ```scala [1-3]
+                    var one: Int = 1
+                    var half: Double = 1 / 2
+                    var hello: String = "Hello!"
+                    ```
+                    ---
+
+                    - They can be reassigned (change the referenced value)
+
+                    ```scala [1-3]
+                    one = 2
+                    half = 1.0
+                    hello = "Hi!"
+                    ```
+
+                    ---
+
+                    ### Values
+
+                    __Values__ are quite different from variables
+
+                    ---
+
+                    - __Values__ can be declared and initialized (using __`val`__) just
+                    like variables
+
+                    ```scala [1-3]
+                    val one: Int = 1
+                    val half: Double = 1 / 2
+                    val hello: String = "Hello!"
+                    ```
+                    ---
+
+                    - __Values__ cannot be reassigned. Once they are assigned, they hold the same value
+
+                    ```scala [1-3]
+                    one = 1 	  // It is prohibited, will not compile
+                    half = 1.0    // It is prohibited, will not compile
+                    hello = "Hi!" // It is prohibited, will not compile
+                    ```
+
+                    ---
+
+                    ### Primitive Types
+
+                    Scala ecosystem has a set of predefined value types or primitive types
+
+                    ---
+
+                    - Float, Double
+                    - Short, Int, Long
+                    - Byte
+                    - Boolean
+                    - Char
+                    - Unit
+
+                    ---
+
+                    - Most of them are a richer version (more methods) of the corresponding Java
+                    primitives
+                    - For example:
+
+                    ```scala [1-15]
+                    val x: Double = 1.3
+                    // Built in conversions
+                    val y: Int = x.toInt
+                    println(y) // 1
+                    ```
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+				<textarea data-template>
+                    ### Functions
+
+                    In Scala _functions_ play a big role
+                    ---
+                    - Functions are defined through __`def`__ keyword
+                    - Functions can consist of several expressions. Last expression must have
+                    the same type as the function result type.
+
+                    ```scala [1-15]
+                    def meow(): Unit = {
+                      val wow: String = "wow!" // Statement
+                      println("meow!")         // Statement, thus returns Unit
+                    }
+
+                    def bark(): String = {
+                      println("bark!") // Statement
+                      "bark!"          // Expression of the type "String"
+                    }
+                    ```
+                    ---
+                    - For single expression methods, brackets (`{`, `}`) can be omitted
+
+                    ```scala [1-2]
+                    def meow(): Unit =
+                      println("meow!")
+                    ```
+                    ---
+                    - Result type can also be omitted
+                    - It will be automatically deduced by __type inference__
+
+                    ```scala [1]
+                    def meow() = println("meow!")
+                    ```
+                    ---
+
+                    - Functions can be used as values in Scala using special **`_`** (underscore) syntax
+
+                    ```scala [1-15]
+                    def square(x: Int): Int = x * x
+
+                    // `square _` references function as a value
+                    val squareFunction: Int => Int = square _
+
+                    val res1 = square(2)         // 4
+                    val res2 = squareFunction(2) // 4
+                    ```
+                    ---
+
+                    - Functions have their own type constructor __`=>`__
+                    - Left side corresponds to type of arguments
+                    - Right side corresponds to type of the result
+
+                    ```scala [1-4]
+                    def sum(a: Int, b: Int, c: Int): Int =
+                    a + b + c
+
+                    val sumF: (Int, Int, Int) => Int = sum _
+                    ```
+
+                    ---
+
+                    - Functions can be passed as arguments to other functions
+                    - Functions that take other functions are called __High Order__
+
+                    ```scala [1-8|1|4-5|7-8]
+                    def calculate(a: Int, b: Int, op: (Int, Int) => Int): Int =
+                      op(a, b)
+
+                    def sum(a: Int, b: Int): Int = a + b
+                    def multiply(a: Int, b: Int): Int = a * b
+
+                    val resultOne = calculate(1, 2, sum)      // 1 + 2 = 3
+                    val resultTwo = calculate(1, 2, multiply) // 1 * 2 = 2
+                    ```
+
+                    ---
+                    - Functions even can have no name. These functions are called __anonymous__
+
+                    ```scala [1-5|4-5]
+                    def calculate(a: Int, b: Int, op: (Int, Int) => Int): Int =
+                      op(a, b)
+
+                    val resultOne = calculate(1, 2, (a, b) => a + b) // 1 + 2 = 3
+                    val resultTwo = calculate(1, 2, (a, b) => a * b) // 1 * 2 = 3
+                    ```
+
+                    ---
+                    - We can simplify this syntax even further
+                    - Each argument of anonymous function is used only once
+                    - For this case, you can use __`_`__ (underscore) (different underscore,
+                    than previous)
+
+                    ```scala [1-15]
+                    def calculate(a: Int, b: Int, op: (Int, Int) => Int): Int =
+                    op(a, b)
+
+                    val resultOne = calculate(1, 2, _ + _) // 1 + 2 = 3
+                    val resultTwo = calculate(1, 2, _ * _) // 1 * 2 = 3
+                    ```
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## Control Structures
+                    ---
+
+                    ### `if`
+
+                    Base control structure for branching
+                    ```scala [1-15]
+                    // ??? special function that can be used as a placeholder
+                    var condition: Boolean = ???
+
+                    if (condition) {
+                      println("Condition is true")
+                      condition = false
+                    } else {
+                      println("Condition if false")
+                      condition = true
+                    }
+                    ```
+
+                    ---
+
+                    - Brackets `{}` can be omitted for single expression branches
+
+                    ```scala [1-15]
+                    if (condition)
+                      println("Condition is true")
+                    else {
+                      println("Condition if false")
+                      condition = true
+                    }
+                    ```
+
+                    ---
+                    - `if` forms an expression. It has a return type, meaning all branches
+                    must return the same type
+
+                    ```scala [1-15]
+                    val condition: Boolean = ???
+
+                    // `if` can be written in single line
+                    val result = if (condition) "yes" else "no"
+                    println(result)
+                    ```
+
+                    ---
+
+                    **`else if`** syntax is also supported in Scala
+
+                    ```scala [1-15]
+                    val conditionOne: Boolean = ???
+                    val conditionTwo: Boolean = ???
+
+                    val result =
+                      if (conditionOne)
+                        "case 1"
+                      else if (conditionTwo)
+                        "case 2"
+                      else
+                        "case 3"
+                    ```
+
+                    ---
+
+                    ### `while`
+
+                    Base control structure for looping
+
+                    ```scala[1-15]
+                    var index: Int = 0
+
+                    while (index < 5) {
+                      println(index)
+                      index += 1
+                    }
+                    ```
+                    ---
+
+                    ### `for`
+
+                    Base control structure for looping with index
+
+                    ```scala [1-15]
+                    for (idx <- 1 to 5) {
+                      println(idx)
+                    }
+                    ```
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+				<textarea data-template>
+                    ### Classes
+
+                    Scala has Classes for OOP paradigm
+
+                    ---
+                    These two definitions of classes in Scala and Java are equivalent
+
+                    ```scala [1-15]
+                    // Scala
+                    class Cat(nameArg: String) {
+                      private var name: String = nameArg
+                    }
+                    ```
+                    ```java [1-15]
+                    // Java
+                    public class Cat {
+                        private String name;
+
+                        public Cat(String nameArg) {
+                            this.name = nameArg
+                        }
+                    }
+                    ```
+                    ---
+
+                    However, Scala definition can be simplified further
+
+                    ```scala [1]
+                    class Cat(private var name: String)
+                    ```
+
+                    - **`name`** is a variable of the class **`Cat`**
+                    - **`name`** is also an argument of the constructor **`Cat`**
+
+                    ---
+
+                    - Objects are created through the same **`new`** keyword as in Java
+
+                    ```scala [1-15]
+                    val cat: Cat = new Cat("Barsik")
+                    // `cat` will hold "Barsik" value in `name` variable
+                    ```
+
+                    ---
+
+                    - Classes can also have _values_
+                    - Because they can not be reassigned, we can make the public by default by omitting
+                    __`private`__ modifier
+
+                    ```scala [1]
+                    class Dog(val name: String)
+                    ```
+
+                    ---
+
+                    - Scope defined by brackets is the scope of the constructor
+                    - We can make intermediate computations
+
+                    ```scala [1-16]
+                    class MyDog(nameArg: String) {
+                      val name: String = "My " + nameArg
+                    }
+
+                    val dogName = new MyDog("Pluto").name
+                    // dogName = "My Pluto"
+                    ```
+                    ---
+
+                    - Scala classes do not have a static scope like Java classes
+                    - However, Scala has a special construction called `object`
+
+                    ```scala [1-3]
+                    object Math {
+                      def sum(a: Int, b: Int): Int = a + b
+                    }
+                    ```
+                    ---
+
+                    - Object can be viewed as a class that has only one object that is already defined
+                    - Like static singleton in Java
+                    - Objects are initialized at the start of the program
+
+                    ```scala [1-15]
+                    object One {
+                      val value: Int = 1
+                    }
+
+                    object Two {
+                      // Direct access value through `One` object
+                      val value: Int = One.value + 1
+                    }
+                    ```
+
+                    ---
+                    - Objects have their own special type and can be treated as regular objects
+                    - Type is defined through special `.type` syntax
+
+                    ```scala [1-15]
+                    object One {
+                      val value: Int = 1
+                    }
+
+                    val one: One.type = One
+                    val two = one.value + 1
+
+                    ```
+
+                    ---
+
+                    - Object can have the same name as class. If it is placed in the same file as class, this object is
+                    called __`companion`__
+                    - It acts like a static scope of the class
+
+                    ```scala [1-8|1,6|7|2-3|1-15]
+                    class Circle(val radius: Double) {
+                      def area: Double =
+                        Circle.PI * radius * radius // PI can be accessed
+                    }
+
+                    object Circle {
+                      private val PI: Double = 3.14
+                    }
+                    ```
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## String Interpolation
+
+                    Instrument for formatting strings
+
+                    ---
+
+                    - Any object in Scala has a method **`toString`** (legacy from Java)
+
+                    ```scala [1-15]
+                    class Cat(val name: String) {
+                      override def toString(): String = name
+                    }
+
+                    val cat = new Cat("Barsik")
+                    val catName = cat.toString()
+
+                    ```
+
+                    ---
+
+                    - Formatting through naive construction can become tedious
+
+                    ```scala [1-15]
+                    class Person(val name: String, val surname: String)
+
+                    val person = new Person("Petya", "Petrov")
+                    val fullName = person.name + " " + person.surname
+                    // fullName = "Petya Petrov"
+                    ```
+
+                    ---
+
+                    Scala has special tool - string interpolation
+
+                    ```scala [1-15]
+                    val person = new Person("Petya", "Petrov")
+                    // variables can be used in strings
+                    val fullName = s"{$person.name} ${person.surname}"
+                    // fullName = "Petya Petrov"
+                    ```
+
+                    ---
+
+                    - Each mentioned variable in the string will be converted to String through **`toString`** method
+
+                    ```scala [1-15]
+                    class Cat(val name: String) {
+                      override def toString(): String = name
+                    }
+
+                    val cat = new Cat("Barsik")
+                    val catGreeting = s"Hello, my name is $cat"
+                    // catGreeting = "Hello, my name is Barsik"
+                    ```
+
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+				<textarea data-template>
+					### Program Start
+
+					Our program must have an entrypoint. It is a special function, which
+					starts the execution of our program.
+
+					---
+
+                    Entrypoint function in Java
+
+					```java [1-15]
+					public class Main {
+					  public static void main(String[] args) {
+					    System.out.println("Hello world!")
+					  }
+					}
+					```
+					---
+					Entrypoint function in Scala
+
+					```scala [1-15]
+					object Main {
+					  def main(args: Array[String]): Unit = {
+					    println("Hello world!")
+					  }
+					}
+					```
+					---
+
+                    Every function with such signature will be treated as a separate entrypoint to the program
+
+                    ```scala [1-15]
+					object MainOne {
+                      def main(args: Array[String]): Unit = {
+                        println("Hello world!")
+                      }
+                    }
+
+                    object MainTwo {
+                      def main(args: Array[String]): Unit = {
+                        println("Hello world!")
+                      }
+                    }
+                    ```
+
+                    It can be simplified by using special trait `App`
+
+                    ```scala [1-15]
+                    object Main extends App {
+                      println("Hello world!")
+                    }
+                    ```
+				</textarea>
+            </section>
+        </section>
+    </div>
+</div>
+
+
+</body>
+</html>
