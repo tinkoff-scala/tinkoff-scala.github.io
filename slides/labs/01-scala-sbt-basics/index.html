@@ -4,7 +4,7 @@
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     
-    <title>Lab 01 - sbt</title>
+    <title>Lab 01 - Scala & Sbt Basics</title>
   <script type="module" crossorigin src="/assets/vendor.ddd8df57.js"></script>
   <script type="module" crossorigin src="/assets/main.467d0acf.js"></script>
   <link rel="stylesheet" href="/assets/main.5ea68116.css">
@@ -13,14 +13,187 @@
 <div class="reveal">
     <div class="slides">
         <!--Intro-->
-        <section>
-            <section data-markdown>
-                <textarea data-template>
-                    ## sbt
+        <section data-markdown>
+			<textarea data-template>
+				## Scala & Sbt Basics
+				Lab 01
+			</textarea>
+        </section>
 
-                    Lab 01
-                </textarea>
+        <!--Organizational notes-->
+        <section>
+            <h2>Organizational notes</h2>
+            <ul>
+                <li class="fragment" data-fragment-index="1" style="font-size:30px">Each lab, starting from the next one, you receive a practice task. Every practice has a one-week deadline.</li>
+                <li class="fragment" data-fragment-index="2" style="font-size:30px">In total labs cost 20% of the final grade</li>
+                <li class="fragment" data-fragment-index="3" style="font-size:30px">Labs submissions will be organized using Github Classroom, where you will get assigments in individual repos. <b style='color:red !important;'>DO NOT PUSH ALL CODE TO MASTER.</b> You should create a new branch, push all code into it and open pull request onto master. Only in this case Github Action job with autotests will run.</li>
+            </ul>
+        </section>
+
+        <!--IDE-->
+        <section>
+            <section>
+                <h2>Integrated Development Environment</h2>
+                <ul>
+                    <li class="fragment" data-fragment-index="1">You can use any editor to write Scala code. But there are two of the most comfortable IDE:</li>
+                    <ul>
+                        <li class="fragment" data-fragment-index="2">Intellij IDEA</li>
+                        <li class="fragment" data-fragment-index="3">VS Code</li>
+                    </ul>
+                    <li class="fragment" data-fragment-index="4">Both requires specific Scala plugins to correctly work with Scala code</li>
+                </ul>
             </section>
+            <section>
+                <h2>Intellij IDEA</h2>
+                <ul>
+                    <li>Pros:</li>
+                    <ul>
+                        <li class="fragment" data-fragment-index="1">Best code navigation</li>
+                        <li class="fragment" data-fragment-index="2">Everything works out of the box</li>
+                    </ul>
+                    <li class="fragment" data-fragment-index="3">Cons:</li>
+                    <ul>
+                        <li class="fragment" data-fragment-index="4">High memory consumption</li>
+                    </ul>
+                </ul>
+            </section>
+            <section>
+                <h2>VS Code</h2>
+                <ul>
+                    <li>Pros:</li>
+                    <ul>
+                        <li class="fragment" data-fragment-index="1">Lightweight</li>
+                        <li class="fragment" data-fragment-index="2">Fast incremental compilation</li>
+                    </ul>
+                    <li class="fragment" data-fragment-index="3">Cons:</li>
+                    <ul>
+                        <li class="fragment" data-fragment-index="4">Requires additional build tools like Metals to get rich functionality</li>
+                        <li class="fragment" data-fragment-index="5">Sometimes unstable having navigation bugs as the tool is a new one</li>
+                    </ul>
+                    <li class="fragment" data-fragment-index="6">It is up to you to choose IDE you like, but I recommend to use Intellij due to its ease of use</li>
+                </ul>
+            </section>
+        </section>
+        <section>
+            <section>
+                <h2>SBT: Scala build tool</h2>
+                <p class="fragment" data-fragment-index="1" style="text-align: left;">Most popular and mature build tool for Scala used in most of the projects</p>
+                <p class="fragment" data-fragment-index="2" style="text-align: left;">Uses Scala to write build specification code</p>
+                <p class="fragment" data-fragment-index="3" style="text-align: left;">Intellij Idea automatically includes sbt for every project that uses it and has interactive sbt shell</p>
+                <p class="fragment" data-fragment-index="4" style="text-align: left;">Requires user to have JDK 8/11/16, but Scala does not take much advantage from jdk 8+ features</p>
+            </section>
+            <section data-markdown>
+				<textarea data-template>
+					## Sbt
+					### Basic commands
+					```console [1-9|1|2|3-4|5|6-7|8|9]
+					user@mac example % sbt
+					sbt:example> compile
+					sbt:example> projects # list all project modules
+					sbt:example> project moduleName
+					sbt:example> reload # Reloads the build definition
+					sbt:example> moduleName/run # run main app
+					sbt:example> moduleName/test # run all tests
+					sbt:example> clean # Deletes all generated files
+					sbt:example> help
+					```
+					---
+					### Build files
+
+					- Main build file for every project is `build.sbt`
+					- Also there are auxiliary files under project folder: `plugins.sbt`, `build.properties` (here sbt version is specified)
+					- Example of simple `build.sbt` file:
+
+					```scala [1-6|1|2-4|6]
+					scalaVersion := "2.13.3"
+					name := "hello-world"
+					organization := "kek.shrek"
+					version := "1.0"
+
+					libraryDependencies ++= Seq("org.scala-lang.modules" %% "scala-parser-combinators" % "1.1.2")
+					```
+					---
+					- More modular structure:
+
+					```scala
+					import Dependencies._
+
+					ThisBuild / scalaVersion := "2.13.3"
+					ThisBuild / version := "1.0"
+
+					lazy val root = (project in file("."))
+						.settings(
+							name := "example",
+							libraryDependencies ++= Seq(parser.combinators)
+						)
+					```
+					- project/Dependencies.scala:
+
+					```scala
+					import sbt._
+
+					object Dependencies {
+						object parser {
+							val version = "1.1.2"
+							val combinators = "org.scala-lang.modules" %% "scala-parser-combinators" % version
+						}
+					}
+					```
+					---
+                    ### Dependencies management
+                    To add new dependencies to project one should use sbt settings key `libraryDependencies`.
+
+                    A dependency value consists of:
+                    * groupId (organization)
+                    * artifactId
+                    * revision (version)
+                    * configuration (optional), e.g. Test which adds only code from dependency test module
+
+                    And a full value looks like `"groupId % artifactId % revision"`.
+					---
+                    You can add Maven dependencies like this, but a problem arises with Scala specific dependencies.
+
+                    Since Scala has different version, most of which dont have backward compatability, library publisher should provide sources for each scala major version: 2.12, 2.13
+
+                    Sbt can automatically fetch dependency for your project's Scala version by specifying a dependency value like:
+                    `libraryDependency += "groupId % artifactId %% revision"`
+					---
+                    Remember that dependencies are transitive meaning that a dependency can add its own dependencies to your project
+                    and they can potentially override some libraries versions if they are older than transitive ones
+
+                    <img src="https://gcdnb.pbrd.co/images/omJw810kjdpc.png?o=1" width="600" height="400"/>
+					---
+                    Not all packages live on the same server; sbt uses the standard Maven2 repository by default.
+
+                    If your dependency isn’t on one of the default repositories, you’ll have to add a resolver to help sbt find it.
+
+                    To add an additional repository, use sbt key `resolvers`:
+                    ```
+                    resolvers += name at location
+                    ```
+
+                    e.g.
+                    ```
+                    resolvers += "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots"
+                    ```
+					---
+					### Plugins
+					* Plugins define a sequence of sbt settings that are automatically added to all projects or that are explicitly declared for selected projects. Plugins should be added to project/plugins.sbt file
+					* Two useful plugins are:
+						1. scalafmt - allows to specify code formatting settings as a configuration file
+						2. dependencyTree - allows to browse dependency graph of the project and find deps which version conflicts and overrides one another
+					---
+                    Some plugins are universal ones which are helpful for every project, e.g. `dependencyTree`.
+
+                    To use them automatically in every project you can add them as a global sbt plugin in `$HOME/.sbt/1.0/plugins/build.sbt`
+                    ```
+                    addSbtPlugin("net.virtual-void" % "sbt-dependency-graph" % "0.10.0-RC1")
+                    ```
+				</textarea>
+            </section>
+        </section>
+        <section>
+            <h2>Practice time</h2>
         </section>
     </div>
 </div>
