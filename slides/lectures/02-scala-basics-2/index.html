@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    
+    <title>Lecture 02 - Scala Basics 2</title>
+  <script type="module" crossorigin src="/assets/vendor.ddd8df57.js"></script>
+  <script type="module" crossorigin src="/assets/main.467d0acf.js"></script>
+  <link rel="stylesheet" href="/assets/main.5ea68116.css">
+</head>
+<body>
+<div class="reveal">
+    <div class="slides">
+        <!--Intro-->
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## Scala Basics 2
+
+                    Lecture 02
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Exceptions
+
+                    `"Anything that can go wrong will go wrong"`
+
+                    ---
+
+                    ### JVM Errors
+
+                    <img src="https://i.imgur.com/H5rwrxd.png" width="45%" height="45%" />
+
+                    ---
+
+                    `Throwable` value is allowed to be thrown in error channel of the program
+
+                    If it is not handled, the program is stopped
+
+                    ---
+
+                    JVM provides two subtypes of `Throwable`:
+
+                    `Error` and `Exception`
+
+                    ---
+
+                    ### Error
+
+                    `Error` indicates something fatal that should not even be tried to handle (JVM error):
+
+                    - `StackOverflowError`
+                    - `OutOfMemoryError`
+
+                    ---
+
+                    ### Exception
+
+                    `Exception` indicates a condition that an application may want to handle (business error, network problem):
+
+                    - `ArithmeticException`
+                    - `IndexOutOfBoundsException`
+
+                    ---
+
+                    `Throwable` values in Java also have other categorization:
+
+                    - checked - required to be handled
+                    - unchecked - not required to be handled
+
+                    ---
+
+                    ### try / catch
+
+                    Scala also has `try` / `catch` control structure for handling errors
+
+                    ```scala [1-15]
+                    var result: Int = -1
+                    try {
+                      result = 1 / 0
+                    } catch {
+                      case e: ArithmeticException =>
+                        println("Division by zero")
+                        result = -2
+                    }
+                    ```
+
+                    ---
+
+                    However, later we will study other ways to work with errors
+
+				</textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+				<textarea data-template>
+					## Multiple arguments
+
+					Functions can have several argument lists
+
+					```scala [1-5|1|4|5]
+					def sum3(a: Int)(b: Int)(c: Int): Int =
+						a + b + c
+
+					val sumF: Int => Int => Int => Int = sum3 _
+					val result = sum3(1)(2)(3) // result = 6
+					```
+					---
+					Each list can have different set of arguments
+
+					```scala [1-3]
+					def cube(a: Int, b: Int)(c: Int): Int = a * b * c
+
+					val result = cube(1,2)(3) // result = 6
+					```
+					---
+					- We can feed arguments to such functions in portions, making them
+					__partially applied__
+
+					```scala [1-3|1|2|3]
+					val sum2: Int => Int => Int = sum3(1)
+					val sum1: Int => Int = sum2(2)
+					val result: Int = sum(3) // result = 6
+					```
+					---
+					- Each application of one argument list produces a new function
+					- New functions consider only the rest argument lists
+					- This concept is called __carrying__
+
+					```scala [1-2|1|2]
+					val predefinedCube: Int => Int = cube(1, 2)
+					val result: Int = predefinedCube(3) // result = 6
+					```
+				</textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+				<textarea data-template>
+					### Closure
+					---
+
+					- Closure is a function that captures or uses variables or values outside of the scope
+					of the function
+
+					```scala [1-5]
+					val global: Int = 10
+
+					def sum(a: Int, b: Int): Int = a + b + global
+
+					val result = sum(1, 2) // result = 13
+					```
+					---
+
+					- Same works with variable. And it also captures all changes to a variable
+
+					```scala [1-7]
+					var global: Int = 10
+
+					def sum(a: Int, b: Int): Int = a + b + global
+
+					val result1 = sum(1, 2) // result1 = 13
+					global += 1
+					val result2 = sum(1, 2) // result2 = 14
+					```
+				</textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+				<textarea data-template>
+					### Pattern Matching
+
+					__Pattern Matching__ is a mechanism for checking a value against a pattern
+
+					---
+					- The basic form of the pattern matching comes in **`match`** control structure
+					- `match` control structure in its simplest form is acting like a switch case from Java
+
+					```scala [1-15]
+					import scala.util.Random
+
+					val x: Int = Random.nextInt(10)
+
+					x match {
+					  case 0 => println("zero")
+					  case 1 => println("one")
+					  case 2 => println("two")
+					  // again special pattern `_` - default case
+					  case _ => println("other")
+					}
+					```
+
+					---
+
+					- `match` control structure is also an expression. Same mechanism is in `if`
+					- all expressions in cases must have the same type
+
+					```scala [1-15]
+					val x: Int = Random.nextInt(10)
+
+					val result: String = x match {
+					  case 0 => "zero"
+					  case 1 => "one"
+					  case 2 => "two"
+					  case _ => "other"
+					}
+
+					println(result)
+					```
+
+					---
+
+					- If not all patterns are covered, compiler will raise a warning:
+						- `match is not exhaustive`
+					- Moreover, it will throw an exception `MatchError` at the runtime
+
+					```scala [1-15]
+					val in: Int = 0
+
+					val result: String = in match {
+					  case 1 => "one"
+					}
+
+					// `throws` scala.MatchError
+					```
+					---
+
+					You can create local variables right in case expressions:
+
+					```scala [1-15]
+					val count: Int = Random.nextInt(10)
+
+					val result: String = count match {
+					  case 0 	   => "none"
+					  case nonzero =>
+						// nonzero is a local variable
+						nonzero.toString
+					}
+					```
+
+					---
+
+					You can have multiple statements in case expressions:
+
+					```scala [1-15]
+					val count: Int = Random.nextInt(10)
+
+					val result: String = count match {
+					  case 0 	   => "none"
+					  case nonzero =>
+					    // no need to use `{}`
+						println(nonzero)
+						nonzero.toString
+					}
+					```
+
+					---
+
+					You can use if expressions (__Pattern Guards__) in case expressions
+
+					```scala [1-15]
+					val x: Int = Random.nextInt(10)
+
+					val result: String = x match {
+					  case x if x % 2 == 0 => "even"
+					  case _ => "odd"
+					}
+					```
+
+					---
+
+					You can use union of patterns in case expressions:
+
+					```scala [1-15]
+					val x: Int = Random.nextInt(10)
+
+					val result: String = x match {
+					  // `|` to create more complex patterns
+					  case 0 | 1 | 2 => "1 or 2 or 3"
+					  case _         => "not (1 or 2 or 3)"
+					}
+					```
+
+					---
+
+					- `match` control structure is not the only place where you can use pattern matching
+					- You can use it in function declaration
+
+					```scala [1-15]
+					def prettyPrint(in: Int)(f: Int => String): Unit =
+					  println(f(in))
+
+					// Two calls are equivalent
+					prettyPrint(Random.nextInt(10)) { x =>
+					  x match {
+					    case x if x % 2 == 0 => "even"
+					    case _               => "odd"
+					  }
+					}
+					prettyPrint(Random.nextInt(10)) {
+					  case x if x % 2 == 0 => "even"
+					  case _               => "odd"
+					}
+					```
+
+				</textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+				<textarea data-template>
+                    ### Traits
+
+                    Or Java Interfaces in Scala
+                    ---
+
+                    - Trait is a set of declarations of methods and fields
+                    - Methods and fields are allowed to be __abstract__ (no body or value)
+                    - Methods and fields are allowed to have implementations
+
+                    ```scala [1-10]
+                    trait Meow {
+                      val serialNumber: Int = 1
+                      val message: String
+
+                      def meow(): Unit
+                      def scratch(times: Int): Unit
+                      def pretty: String = "Meow"
+                    }
+                    ```
+                    ---
+
+					Traits can be implemented by classes
+
+                    ```scala [1-15]
+                    class Cat(val name: String) extends Meow {
+                      override val message: String = "meow!"
+
+                      override def meow(): Unit =
+                        println(s"$name says meow!")
+                      override def scratch(times: Int): Unit =
+                        println(s"$name scratches $times times")
+                    }
+                    ```
+
+                    ---
+
+					Traits can be implemented by objects
+
+                    ```scala [1-15]
+                    object CatBob extends Meow {
+                      override val message: String = "meow!"
+
+                      override def meow(): Unit =
+                        println("Bob says meow!")
+                      override def scratch(times: Int): Unit =
+                        println(s"Bob scratches $times times")
+                    }
+                    ```
+                </textarea>
+            </section>
+        </section>
+
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Case Class
+                    - Scala has special classes to hold values called __Case Classes__
+
+                    ```scala [1-5|2,5]
+                    // `height` and `width` are public values
+                    case class Rectangular(height: Int, width: Int)
+
+                    // Almost identical to
+                    class Rectangular(val height: Int, val width: Int)
+                    ```
+                    ---
+                    - Case Classes don't need __`new`__ keyword to construct objects
+
+                    ```scala [1-2]
+                    val recOne = Rectangular(1, 2)
+                    val recTwo = Rectangular(2, 1)
+                    ```
+                    ---
+                    - The reason for this is a special `apply` method that is generated for companion object
+                    of the case class
+                    - `.apply()` call can be shrinked to `.()`
+
+                    ```scala [1-15]
+                    case class Rect(height: Int, width: Int)
+
+                    // Syntax Sugar
+                    class RectRef(height: Int, width: Int)
+                    object RectRef {
+                      def apply(height: Int, width: Int): RectRef =
+                        new RectRef(height, width)
+                    }
+
+                    val one = RectRef.apply(1, 2)
+                    val two = RectRef(1, 2)
+                    val three = Rect.apply(1, 2)
+                    val four = Rect(1, 2)
+                    ```
+                    ---
+                    - Case Classes have predefined __`toString`__ method for pretty printing
+
+                    ```scala [1-15]
+                    val rec = Rectangular(1, 2)
+                    val showRec = rec.toString // Rectangular(1, 2)
+                    ```
+
+                    ---
+                    - Case Classes have properly defined __`equals`__ method
+                    - `==` is an alias on `equals`
+
+                    ```scala [1-15]
+                    case class Rect(height: Int, width: Int)
+                    class RectRef(val height: Int, val width: Int)
+
+                    val resultOne: Boolean =
+                      Rect(1, 2) == Rect(1, 2)
+                    // resultOne = true
+                    val resultTwo: Boolean =
+                      new RectRef(1, 2) == new RectRef(1, 2)
+                    // resultTwo = false
+                    ```
+
+                    ---
+                    - Case Classes have predefined __`.hashCode()`__ method that allows to use compound value keys
+                    in HashMaps
+
+                    ```scala [1-15]
+                    final case class CompoundKey(partition: Int, key: String)
+
+                    val map: Map[CompoundKey, Int] = Map(
+                      CompoundKey(1, "test") -> 1,
+                      CompoundKey(2, "test") -> 2
+                    )
+
+                    val result = map(CompoundKey(1, "test"))
+                    //result = 1
+                    ```
+
+                    ---
+                    - Case Classes can be deconstructed in the pattern matching
+
+                    ```scala [1-15]
+                    final case class CompoundKey(partition: Int, key: String)
+
+                    val key: CompoundKey = ???
+                    key match {
+                      case CompoundKey(p, k) =>
+                        println(s"partition $p, key: $k")
+                    }
+                    ```
+
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Packages
+
+                    ---
+
+                    Classes, Objects and Traits are top-level objects
+
+                    You cannot create functions outside of objects, classes, traits
+
+                    ```scala [1-15]
+                    package test
+
+                    object Main {
+                      def main(args: Array[Byte]): Unit =
+                        println("Test")
+                    }
+                    ```
+
+                    ---
+
+                    Each top-level object must belong to a package
+
+                    Package is declared at the top of the file
+
+                    Files can contain multiple objects
+
+                    ---
+
+                    ```scala [1-15]
+                    package my.cool.test
+
+                    object One
+                    object Two
+
+                    case class Three(a: Int, b: String)
+                    ```
+                </textarea>
+            </section>
+        </section>
+
+    </div>
+</div>
+
+
+</body>
+</html>
