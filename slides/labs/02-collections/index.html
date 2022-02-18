@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    
+    <title>Lab 02 - Collections</title>
+  <script type="module" crossorigin src="/assets/vendor.ddd8df57.js"></script>
+  <script type="module" crossorigin src="/assets/main.467d0acf.js"></script>
+  <link rel="stylesheet" href="/assets/main.5ea68116.css">
+</head>
+<body>
+<div class="reveal">
+    <div class="slides">
+        <!--Intro-->
+        <section data-markdown>
+			<textarea data-template>
+				## Collections
+				Lab 02
+			</textarea>
+        </section>
+
+        <!--Collection types recall-->
+        <section>
+            <h2>Types of collections</h2>
+            <ul>
+                <li class="fragment" data-fragment-index="1">Immutable</li>
+                <ul>
+                    <li class="fragment" data-fragment-index="1">Present under scala.collection.immutable</li>
+                    <li class="fragment" data-fragment-index="2">Such operations as addition, update, removal returns new instance of collection, leaving old collection unchanged</li>
+                    <li class="fragment" data-fragment-index="3">Used as default collection types</li>
+                </ul>
+                <li class="fragment" data-fragment-index="4">Mutable</li>
+                <ul>
+                    <li class="fragment" data-fragment-index="5">Can be imported from scala.collection.mutable</li>
+                    <li class="fragment" data-fragment-index="6">Modification operations changes the collection state as a side effect</li>
+                </ul>
+            </ul>
+        </section>
+
+        <!--Collections hierarchy-->
+        <section>
+            <section>
+                <h2>Collections hierarchy</h2>
+                <img src="https://docs.scala-lang.org/resources/images/tour/collections-immutable-diagram.svg" width="500px" height="700px"/>
+            </section>
+        </section>
+        <section>
+			<section data-markdown>
+				<textarea data-template>
+					## Traversable
+					Trait representing collections with one abstract method `foreach`.
+					```scala
+					def foreach[U](f: Elem => U)
+					```
+					The foreach method is meant to traverse all elements of the collection, and apply the given operation, `f` as a side effect, to each element.
+					The result of `f` is discarded by `foreach`
+					```scala
+					val seq: Traversable = Seq(1,2,3)
+					seq.foreach(println(_)) // out: 1\n 2\n 3\n
+					```
+				</textarea>
+			</section>
+			<section data-markdown>
+				<textarea data-template>
+					## Iterable
+					All methods in this trait are defined in terms of an abstract method, `iterator`, which yields the collection’s elements one by one.
+					Its an analog of Iterator in Java.
+					```scala
+					def iterator: Iterator[A]
+					```
+					For example:
+					```scala
+					def foreach[U](f: Elem => U): Unit = {
+					  val it = iterator
+					  while(it.hasNext) f(it.next())
+					}
+					```
+					---
+
+					Two more methods exist in Iterable that return iterators: `grouped` and `sliding`. They return iterators over subsequences of Iterable
+					```scala
+					val xs: Iterable = Seq(1, 2, 3, 4, 5)
+					val git = xs grouped 3 // Iterator[Seq[Int]]
+					git.next() // Seq(1,2,3)
+					git.next() // Seq(4,5)
+					val sit = xs sliding 3 // Iterator[Seq[Int]]
+					sit.next() // Seq(1,2,3)
+					sit.next() // Seq(2,3,4)
+					sit.next() // Seq(3,4,5)
+					```
+				</textarea>
+			</section>
+		</section>
+		<section>
+            <section data-markdown>
+				<textarea data-template>
+					## Seq
+					- Trait representing sequences. Sequence - is a kind of iterable that has a length and whose elements have fixed index positions, starting from 0.
+					- apply or just () operator: get element at index
+					```scala
+					val seq = Seq(1,2,3)
+					seq(1) // 2
+					```
+				</textarea>
+            </section>
+            <section data-markdown>
+				<textarea data-template>
+					- head/headOption - get first element
+					- tail - get seq without first element
+					- last - get last element
+					```scala
+					val seq = Seq(1,2,3,4)
+					seq.head // 1
+					seq.headOption // Some(1)
+					Seq().headOption // None
+					seq.tail // Seq(2,3,4)
+					```
+				</textarea>
+            </section>
+            <section data-markdown>
+				<textarea data-template>
+				- addition operations: prepend, append, prependAll, appendAll
+				```scala
+				val seq = Seq(1,2,3)
+				seq.append(4) // Seq(1,2,3,4)
+				seq :+ 4 // Seq(1,2,3,4) - syntax for append
+				seq.prepend(0) // Seq(0,1,2,3)
+				0 +: seq // Seq(0,1,2,3) - syntax for prepend
+				```
+
+				- update operation: updated
+				```scala
+				val seq = Seq(1,2,3)
+				val seqUpd = seq.updated(0, 4) // seqUpd = Seq(4,2,3)
+				```
+				</textarea>
+            </section>
+            <section data-markdown>
+				<textarea data-template>
+					- comparisons, search, sorting
+					```scala
+					val seq = Seq(2,1,3)
+					seq.contains(1)
+					seq.sorted // Seq(1,2,3)
+					val f = (x: Int, y: Int) => x > y
+					seq.sortWith(f) // Seq(3,2,1)
+					```
+				</textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+				<textarea data-template>
+					## List
+					- linked list
+					- has two implementations:
+					```scala
+					sealed abstract class List[+A]
+					case class ::[A](head: A, tail: List[A]) extends List[A]
+					case object Nil extends List[Nothing]// represents empty list
+					```
+					- LIFO - best choice for a stack-like access patterns
+					- O(1) prepend, head and tail operations
+				</textarea>
+            </section>
+            <section data-markdown>
+				<textarea data-template>
+					- haskell like pattern matching: we can use pattern matching on list to branch out program execution
+					```scala
+					val list = List(1,2,3)
+					list match {
+						case List(1,2,3) => println("found list")
+						case list @ List(1,2,3) => println(s"found list $list")
+						case 1 :: tail => println("head equals to 1")
+						case head :: List(2,3) => println(head)
+						case head :: Nil => println(s"list has the only element $head")
+						case List(a, _*) if a == 1 => println("pattern matching with guard")
+					}
+					```
+				</textarea>
+            </section>
+            <section data-markdown>
+				<textarea data-template>
+					- `::` constructor and syntax: we can construct/deconstuct list using the same `::`  operator
+					```scala
+					val list1 = 1 :: 2 :: Nil
+					val list2 = 3 :: Nil
+					val list3 = list1 ::: list2 // List(1, 2, 3)
+					val list4 = list3 ++ list1 // List(1, 2, 3, 1, 2)
+					val x :: xs = list3 // x = 1, xs = List(2, 3)
+					```
+				</textarea>
+            </section>
+            <section data-markdown>
+				<textarea data-template>
+					- special constructors (fill, apply, ...)
+					```scala
+					List.fill(3)(1) // List(1,1,1)
+					List.fill(2,3)(1) // List(List(1,1,1), List(1,1,1))
+					List.empty // Nil
+					List.range(0,10) // List(0,1,2,3,4,5,6,7,8,9)
+					List.range(0, 10, 2) // List(0,2,4,6,8)
+					List.tabulate(5)(n => n*n) // List(0,1,4,9,16)
+					```
+				</textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+				<textarea data-template>
+					### Vector
+					- indexed immutable sequence
+					- implemented on trees
+					- provides random access and updates in O(log n) time
+					- speed of append/prepend/tail/init - amortized O(1), worst case O(log n).
+					- has iterable like operations: head, tail
+					```scala
+					val v = Vector(1,2,3)
+					v(2) // 3
+					4 +: v // Vector(4,1,2,3)
+					v :+ 4 // Vector(1,2,3,4)
+					v ++ Vector(0) // Vector(1,2,3,0)
+					```
+				</textarea>
+            </section>
+            <section data-markdown>
+				<textarea data-template>
+					- pattern matching
+					```scala
+					val v = Vector(1,2,3)
+					v match {
+						case x +: xs => ...
+						case Vector(1, _*) => ...
+						case _ => ...
+					}
+					```
+					- has same special constructors as List
+				</textarea>
+            </section>
+        </section>
+        <section data-markdown>
+			<textarea data-template>
+				## Array
+				- java array: Array[T] in scala is a representation for java's T[] with scala's syntactic sugar
+				- mutable
+				- apply to access index
+				```scala
+				val array = Array(1,2,3)
+				array(0) // 1
+				array(0) = 4
+				println(array)// Array(4,2,3)
+				```
+			</textarea>
+        </section>
+        <section data-markdown>
+			<textarea data-template>
+				## Map
+				- Dictionary
+				```scala
+				val states = Map("AL" -> "Alabama", "AK" -> "Alaska")
+				states + ("AZ" -> "Arizona")
+				states - "AZ"
+				states.keys // Seq("AL", "AK")
+				states.values // Seq("Alabama", "Alaska")
+				states("US") // not safe, throws NoSuchElementException
+				states.get("US") // safe, returns Option, in this case None
+				```
+			</textarea>
+        </section>
+        <section data-markdown>
+			<textarea data-template>
+				## Set
+				- iterable that does not contain duplicates
+				```scala=
+				Set(1,1,2,3,5,1) // Set(1,2,3,5)
+				```
+				- diff
+				- union
+				- intersect
+				```scala
+				val s1 = Set("CA", "NY", "AL")
+				val s2 = Set("CA", "WA")
+				s1 diff s2 // Set("NY", "AL")
+				s1 union s2 // Set("CA", "NY", "AL", "WA")
+				s1 intersect s2 // Set("CA")
+				```
+			</textarea>
+        </section>
+        <section data-markdown>
+			<textarea data-template>
+				## Iteration
+				- To iterate over a collection one can use either coll.foreach function, or a for ... yield ... structure
+				```scala
+				val seq = Seq(1,2,3)
+				seq.foreach(i => println(i)) // applies function to each element and returns Unit
+				for i <- seq yield i*i // returns new seq of squares
+				```
+			</textarea>
+        </section>
+        <section>
+            <section data-markdown>
+				<textarea data-template>
+					## Combinators
+					- filter: filter collection using predicate, removing elements that don't satisfy it
+					```scala
+					val seq = Seq(1,2,3,4,5)
+					val onlyEven = seq.filter(_ % 2 == 0) // Seq(2, 4)
+					```
+				</textarea>
+            </section>
+            <section data-markdown>
+				<textarea data-template>
+					- find: finds first element using predicate, or returns None
+					```scala
+					val seq = Seq("CA", "NY")
+					seq.find(_ == "CA") // Some("CA") find
+					```
+				</textarea>
+            </section>
+            <section data-markdown>
+				<textarea data-template>
+					- collect: builds a new collection by applying a partial function
+					to all elements of this one on which the function is defined.
+					```scala
+					val states = Map("AL" -> "Alabama", "AK" -> "Alaska", "CA" -> "California")
+					states.collect {
+						case (key -> value) if key.startsWith("A") => value
+					}
+					```
+				</textarea>
+            </section>
+            <section data-markdown>
+				<textarea data-template>
+					- count: count number of elements satisfying predicate
+					```scala
+					val states = Map("AL" -> "Alabama", "AK" -> "Alaska", "CA" -> "California")
+					states.count {
+						case (key, value) => key.startsWith("A")
+					}
+					```
+				</textarea>
+            </section>
+            <section data-markdown>
+				<textarea data-template>
+					- zip: merges two collections combining their elements in pairs. length = min(coll1.length, coll2.length)
+					```scala
+					val seq1 = Seq(1,2,3)
+					val seq2 = Seq(4,5,6)
+					seq1 zip seq2 // Seq((1,4), (2,5), (3, 6))
+					```
+				</textarea>
+            </section>
+            <section data-markdown>
+				<textarea data-template>
+					- map: builds a new collection applying provided function to each element
+					```scala
+					val seq1 = Seq(1,2,3)
+					seq1.map(i => i*i) // squares
+					```
+					- flatMap: builds a new collection applying function that takes element and returns a collection of the same type
+					```scala
+					val numbers = Seq(0,2,4)
+					def f(x: Int) = Seq(x-1, x, x+1)
+					numbers.flatMap(f(_)) // Seq(-1,0,1,1,2,3,3,4,5)
+					```
+				</textarea>
+            </section>
+            <section data-markdown>
+				<textarea data-template>
+					- take: select first n elements, takeRight, takeWhile
+					- drop: select all elements except first n, dropRight, dropWhile
+					```scala
+					// sliding(windowSize, step)
+					val seq = Seq("CA", "NY", "WA")
+					seq.take(2) // Seq("CA", "NY")
+					seq.drop(1) // Seq("NY", "WA")
+					```
+				</textarea>
+            </section>
+            <section data-markdown>
+				<textarea data-template>
+					- foldLeft/Right: Applies a binary operator to a start value and all elements of this map, going left to right.
+
+					```scala
+					class Seq[A]{
+					  def foldLeft[B](startElement: B)((B, A) => B): B
+					}
+
+					val seq = Seq(1,2,3)
+					seq.foldLeft(0)(_ + _) // 6
+					```
+
+					- reduceLeft/Right: Same as foldLeft/Right, but assumes that iterable is not empty and starts from its first element on either side
+					```scala
+					class Seq[A]{
+					  def reduceLeft[B]((B, A) => B): B
+					}
+					```
+				</textarea>
+            </section>
+            <section data-markdown>
+				<textarea data-template>
+					- scanLeft/Right: takes a binary function as parameter and use it to collapse elements from the collection to create a running total (as collection)
+					```scala
+					val numbers: Seq[Int] = Seq(1, 2, 3, 4, 5)
+					numbers.scanLeft(0)(_ + _) // Seq(0, 1, 3, 6, 10, 15)
+					```
+				</textarea>
+            </section>
+        </section>
+        <section>
+            <h2>Practice</h2>
+            <ul>
+                <li>You should have a github account</li>
+                <li>Do not push all your code to master. Create a new branch and open a pull request in the end. Otherwise, automatic tests will not run</li>
+                <li>Format all code using scalafmt, otherwise automatic tests will fail not even started</li>
+            </ul>
+        </section>
+    </div>
+</div>
+
+
+</body>
+</html>
