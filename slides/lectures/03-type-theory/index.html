@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  
+  <title>Lecture 02 - Type System</title>
+  <script type="module" crossorigin src="/assets/vendor.ddd8df57.js"></script>
+  <script type="module" crossorigin src="/assets/main.467d0acf.js"></script>
+  <link rel="stylesheet" href="/assets/main.5ea68116.css">
+</head>
+
+<body>
+  <div class="reveal">
+    <div class="slides">
+      <section>
+        <section data-markdown>
+          <textarea data-template>
+            ```scala
+            case class Example1(
+              field1: String,
+              field2: String,
+              field3: Int,
+            )
+            val example1 = Example1("a", "b", 3)
+            println(example1)  // Example1(a,b,3)
+            println(example1 == Example1("a", "b", 3))  // true
+            println(example1 == Example1("a", "b", 4))  // false
+            ```
+            Давайте попробуем с нуля собрать свой кейз-класс
+            ---
+            ```scala
+            class Example1Raw(
+              val field1: String,
+              val field2: String,
+              val field3: Int,
+            )
+
+            val example1Raw = new Example1Raw("a", "b", 3)
+            val example1Raw = 
+              new Example1Raw(field1 = "a", field2 = "b", field3 = 3)
+            ```
+            ---
+            ```scala
+            class Example1Raw(
+              val field1: String,
+              val field2: String,
+              val field3: Int,
+            )
+            object Example1Raw {
+              def apply(
+                  field1: String, 
+                  field2: String, 
+                  field3: Int,
+              ): Example1Raw = new Example1Raw(field1, field2, field3)
+            }
+
+            val example1Raw = Example1Raw("a", "b", 3)
+            ```
+            ---
+            ```scala
+            object Example1Raw 
+                extends ((String, String, Int) => Example1Raw) {
+              def apply(
+                  field1: String, 
+                  field2: String, 
+                  field3: Int,
+              ): Example1Raw = new Example1Raw(field1, field2, field3)
+            }
+
+            def doSmth[T](f: (String, String, Int) => T) = f("a", "b", 3)
+            doSmth(Example1Raw)
+            doSmth(Example1Raw.apply)
+            ```
+            ---
+            ```scala
+            object Example1Raw {
+              def unapply(v: Example1Raw): Some[(String, String, Int)] =
+                Some((
+                  v.field1, 
+                  v.field2, 
+                  v.field3,
+                ))
+            }
+            val example1Raw = Example1Raw("a", "b", 3)
+            val Example1Raw(a, b, three) = example1Raw
+            example1Raw match {
+              case Example1Raw(a, b, three) =>
+            }
+            ```
+            ---
+            ```scala
+            class Example1Raw(
+              val field1: String,
+              val field2: String,
+              val field3: Int,
+            ) {
+              def equals(rhs: AnyVal): Boolean = {
+                if(!rhs.isInstanceOf[Example1Raw]) return false
+                val rhs = rhs.asInstanceOf[Example1Raw]
+                this.field1 == rhs.field1 &&
+                  this.field2 == rhs.field2 &&
+                  this.field3 == rhs.field3
+              }
+            }
+            Example1Raw("a", "b", 3) == Example1Raw("a", "b", 3)
+            ```
+            ---
+            ```scala
+            class Example1Raw(
+              val field1: String,
+              val field2: String,
+              val field3: Int,
+            ) {
+              def copy(
+                field1: String = this.field1, 
+                field2: String = this.field2, 
+                field3: Int = this.field3,
+              ): Example1Raw = new Example1Raw(field1, field2, field3)
+            }
+
+            Example1Raw("a", "b", 3).copy(field2 = "c")
+            ```
+            ---
+            Кроме этого есть:
+            - `extends Product with Serializable`
+              - `String productPrefix()`
+              - `String productIterator()`
+              - .. другие методы
+            - `def hashCode(): Int`
+            - `def toString(): String`
+            - методы-геттеры для каждого поля
+              - `public String field1()`
+              - `public String field2()`
+              - `public int field3()`
+          </textarea>
+        </section>
+      </section>
+      <section>
+        <section data-markdown>
+          <textarea data-template>
+                    ## Множества
+                    Множество `A` определено отношением членства между произвольным объектом и множеством `A`.
+                    
+                    Объект `A` может быть совершенно любым – бананы, типы фруктов, философские концепты и другие множества.
+                    ---
+                    - `banana ∈ fruits`, `1 ∈ N`, `N ∈ sets`
+
+                    - `sets on this slide = {fruits, N, sets, sets on this slide}`
+                    ---
+                    А ещё у нас есть определенные операции над множествами:
+
+                    `A ∪ B` – объединение множеств, которое содержит элемент, если он есть либо в A либо в B либо в обоиъ.
+
+                    `A ∩ B` – пересечение множеств, которое содержит элемент, если он есть в обоих множествах
+                    ---
+                    `A = B` – A содержит точно те же элементы, что и B.
+
+                    `A ⊆ B` – A являтется подмножеством B, если в B есть все элементы из A. Их пересечение равно.
+
+                    `A ⊂ B` – строгое подмножество, если A ⊂ B, но A ≠ B.
+                </textarea>
+        </section>
+      </section>
+      <section>
+        <section data-markdown>
+          <textarea data-template>
+            ## Algebraic Data Types
+            Алгебраические типы данных
+            - product-type / тип-произведение
+            ```scala
+            case class Product(a: String, b: Int)
+            ```
+            - sum-type / тип–сумма
+            ```scala
+            sealed abstract class Sum
+            case class A(a: String) extends Sum
+            case class B(b: Int) extends Sum
+            ```
+            ---
+            ## Product Types
+
+            Обычно определяются кейз-классами:
+
+            ```scala
+            final case class Person(name: String, birthDate: LocalDate)
+            ```
+
+            Remember Cartesian product of sets:
+            <img src="cartesian-product.svg" height="50" />
+
+            Тип `Person` это именованное произведение типов `String` и `LocalDate` с определенными названиями и позициями полей.
+            ---
+            Tuples (кортежи) – предопределенные анонимные типы-произведения с такими же свойствами.
+            ```scala
+            final case class Tuple1[T1](_1: T1)
+            final case class Tuple2[T1, T2](_1: T1, _2: T2)
+            final case class Tuple3[T1, T2, T3](_1: T1, _2: T2, _3: T3)
+
+            val a: (Int, String) = (1, "1")
+            val b: Tuple2[Int, String] = a
+            val c: (String, Int) = Tuple2("1", 1)
+            val (i: Int, j: String) = b
+            ```
+            ---
+            ## Sum Types
+            Так же известны как копродукты, являются аналогом объединением множеств.
+            
+            ```scala
+            sealed abstract class SumType
+            final case class SInt(i: Int) extends SumType
+            final case class SStr(i: String) extends SumType
+            def printSumType(t: SumType): Unit = t match {
+              case SInt(i) => println(s"This is an int: $i")
+              case SStr(i) => println(s"This is a string: $i")
+            }
+            printSumType(SInt(1))
+            printSumType(SStr("privet"))
+            ```
+            
+            Sum-type представляет тегированное объединение типов, где тегами являются рантайм-классы значений.
+            ---
+            ## Pattern matching
+            У паттерн-матчинга есть три шага в каждом кейсе:
+            - матч по рантайм-типу
+            - экстрактор
+            - проверка guard-предикатов
+            ---
+            Наш ADT:
+            ```scala
+            sealed abstract class Animal
+            case class Cat(name: String) extends Animal
+            case class Dog(name: String) extends Animal
+            ```
+            Обратите внимание на `sealed`. Он означает, что от этого класса или трейта можно отнаследоваться только в этом же **файле**. 
+
+            Наличие sealed позволяет компилятору проверить паттерн-матчинг на избыточность (exhaustiveness).
+            ---
+            Матч по рантайм-типу:
+            ```scala
+            animal match {
+              case cat: Cat => println(s"Cat is $cat")
+              case dog: Dog => println(s"Dog is $dog")
+            }
+            ```
+            Тут не нужен `case _`, так как Animal - `sealed`.
+            ---
+            Матч с экстрактором:
+            ```scala
+            animal match {
+              case Cat(name) => println(s"Cat's name is $name")
+              case Dog(name) => println(s"Dog's name is $name")
+            }
+            ```
+            Экстрактор включает в себя матч по типу и дополнительно вызывает `unapply`.
+            ---
+            Матч с guard'ом:
+            ```scala
+            animal match {
+              case Cat(name) if name == "Матроскин" => println("Да это же Матроскин")
+              case Cat(name) => println(s"Cat's name is $name")
+              case Dog(name) => println(s"Dog's name is $name")
+            }
+            ```
+            В случае наличия guard'а необходимо дописать дефолтный кейс, так как компилятор не может проверить матчинг на избыточность.
+          </textarea>
+        </section>
+      </section>
+      <section>
+        <section data-markdown>
+          <textarea data-template>
+                    ## Роль типов
+                    - определение представления в памяти компьютера;
+                    - утверждение о соответствии логическим предикатам и инвариантам;
+                    - уточнять смысл значения в моделируемом бизнес-домене.
+                    ---
+                    ## Представление
+                    Так мы называем способ хранения значения на уровне железа или другого более низкого уровня, например JVM.
+
+                    Высокоуровневые типы могут быть разными для нас, но одинаковыми в рантайме.
+                    - `ints` и `void*` в C/C++ это просто 4/8 байт памяти.
+                    - Java-дженерики `List<Int>` не несут информации о своих параметрах.
+                    - Некоторые Scala-специфичные типы не имеют представления даже в Java.
+                    ---
+                    ```scala
+                    val i: Int = 1
+                    val j: Double = 2.0d
+                    val k: String = "privet"
+                    ```
+                    ---
+                    Все ссылочные типы Java представляются как 4/8 байт на стеке, но в куче их структура памяти сильно отличается.
+
+                    ```scala
+                    val dog: Dog = new Dog
+                    val cat: Cat = new Cat
+
+                    cat.meow() // ok
+                    cat.bark() // compile error: only a Dog can bark
+                    ```
+                    
+                    ---
+                    А вот эти типы из Scala 3 всегда компилируются в `int` в JVM-байткоде:
+                    ```scala
+                    val one: 1 = 1
+                    val two: 2 = 2
+                    val oneOrTwo: 1 | 2 = one
+                    val int: Int = oneOrTwo
+                    ```
+                </textarea>
+        </section>
+      </section>
+      <section>
+        <section data-markdown>
+          <textarea data-template>
+                    ## Refinement type
+
+                    Иногда наш код может работать не с абсолютно всем множеством инпутов, а только с теми, которые соответствуют предусловию.
+                    
+                    Примеры:
+                    - деление на неравное нулю целое число;
+                    - отправка SMS на корректный номер телефона;
+                    - неотрицательный курс продажи валюты.
+                    ---
+                    **Тип-уточнение** вместе со своим значением является доказательством, что значение удовлетворяет предикату.
+                    Сам предикат определяется конкретным типом.
+
+                    ```scala
+                    final class NonNegativeInt private (val inner: Int)
+                    object NonNegativeInt {
+                      def from(i: Int): Option[Int] = 
+                        if (i >= 0) Some(new NonNegativeInt(i))
+                        else None
+                    }
+                    ```
+
+                    Если функция принимает `NonNegativeInt`, то ей уже не нужно проверять его на отрицательность – он корректен по построению.
+                    ---
+                    ## Доменные типы
+                    Иногда полезно ввести новый тип (newtype), который отличается от базового типа только неравенством по типу.
+                    В отличие от refinement type, такой тип обычно не несет формальных предикатов.
+
+                    ```scala
+                    final class UserId(val inner: String)
+                    final class PaymentId(val inner: String)
+                    ```
+                    ---
+                    Работая с `UserId`s, разработчики стараются работать с ними как можно больше, разворачивая в базовый тип только 
+                    там, где есть взаимодействие с низкоуровневыми сущностями – базы данных, файловая система, общение по сети и т. д.
+
+                    ```scala
+                    def deleteUser(userId: UserId) =
+                      database.deleteUser(userId.inner)
+                    val paymentId: PaymentId = new PaymentId("5-1337")
+
+                    // compilation error: incompatible types
+                    deleteUser(paymentId)
+                    ```
+                </textarea>
+        </section>
+      </section>
+
+      <section>
+        <section data-markdown>
+          <textarea data-template>
+                    ## Subtyping
+
+                    Type A is a subtype of B if values of type A are _coercible_ to type B.
+                    Coersion is a one-way widening of a value's type association.
+
+                    ```scala
+                    val a: A = getA()
+                    val b: B = a  // coercion
+                    ```
+
+                    In this case the type A is called a _narrow_ type and the type B a _wider_ type.
+                    ---
+                    Subtyping in Scala is driven by types' representations.
+                    
+                    In JVM this means that the main method of introducing subtyping is inheritance and interface implementations.
+
+
+                    ```scala
+                    trait Meow {
+                      def meow: String
+                    }
+                    class Cat extends Meow {
+                      def meow = "meow"
+                    }
+                    val cat: Meow = new Cat
+                    ```
+                    ---
+                    ![Type hierarchy](classhierarchy.png)
+                    ---
+                    `Unit` – singleton type, has only one valid value `()`. Similar to a set of one value – `{ a }`.
+                    
+                    `Nothing` – empty/bottom type, has no valid values. Similar to an empty set – `{}`. `throw` and `return` are expressions of type `Nothing`.
+
+                    `Null` – singleton type and a subtype of all `AnyRef` subtypes. Has only one valid value `null` (avoid it pls).
+                    ---
+                    `Any` – a supertype for all types. Looks like a universal set, but is not, because it does not contain itself as a type.
+
+                    `AnyVal` – a supertype for value types: `Int`, `Boolean`, etc. These types sometimes are passed as reference types when necessary.
+
+                    `AnyRef` – a supertype for reference types, a synonym for `java.lang.Object`.
+                    ---
+                    ```scala
+                    trait Animal
+                    trait Meow
+                    trait Bark
+                    class Cat extends Animal with Meow
+                    class Dog extends Animal with Bark
+
+                    val dog: Dog = new Dog
+                    val cat: Cat = new Cat
+                    val someAnimal = if (???) dog else cat  // what is the type?
+                    val meowAnimal: Animal with Meow = cat
+                    ```
+                    ---
+                    Scala 3 vibe
+                    
+                    ```scala
+                    trait Animal
+                    trait Meow
+                    trait Bark
+                    class Cat extends Animal with Meow
+                    class Dog extends Animal with Bark
+
+                    val dog: Dog = new Dog
+                    val cat: Cat = new Cat
+                    val someAnimal: Dog | Cat = if (???) dog else cat
+                    val meowAnimal: Animal with Meow = cat
+                    ```
+                    ---
+                    Scala 2 style
+                    ```scala
+                    trait Animal
+                    trait Meow
+                    trait Bark
+                    class Cat extends Animal with Meow
+                    class Dog extends Animal with Bark
+
+                    val dog: Dog = new Dog
+                    val cat: Cat = new Cat
+                    val someAnimal: Animal = if (???) dog else cat
+                    val meowAnimal: Animal with Meow = cat
+                    ```
+                    ---
+                    ## Not Subtyping
+                    Student represents a logical subset of Person values. Students can be converted to Persons.
+
+                    ```scala
+                    final case class Person(name: String, birthDate: LocalDate)
+                    final case class Student(name: String, birthDate: LocalDate, year: Year)
+
+                    def studentToPerson(student: Student): Person =
+                      Person(student.name, student.birthDate)
+                    ```
+
+                    This is not a subtyping – they do not have compatible JVM representations.
+                </textarea>
+        </section>
+      </section>
+
+      <section>
+        <section data-markdown>
+          <textarea data-template>
+                    ## Option
+                    ```scala
+                    sealed trait Option[+T] {
+                      def get: T
+                    }
+                    final case class Some[+T](get: T) extends Option[T]
+                    case object None extends Option[Nothing] {
+                      def get: Nothing = throw new NoSuchElementException
+                    }
+                    ```
+                    Используется для моделирования потенциально отсутствующих значений. Типизированная замена null'у.
+                    ---
+                    ```scala
+                    val list = List("a", "b", "c")
+                    val a0 = list.get(1)  // returns Some("b")
+                    val a1 = list.get(4)  // returns None
+                    val a2 = list(4)  // throws an exception
+                    a1 match {
+                      case Some(a) => println(a)
+                      case None =>
+                    }
+                    ```
+                    ---
+                    ## Either
+                    ```scala
+                    sealed trait Either[L, R]
+                    final case class Left[L, R](left: L) extends Either[L, R]
+                    final case class Right[L, R](right: R) extends Either[L, R]
+                    ```
+                    Анонимный sum-type, который моделирует наличие значения либо одного типа, либо другого
+
+                    Зачастую L используется как тип-ошибка, а R как тип-успех.
+                    ---
+                    ```scala
+                    sealed trait AgeError
+                    case object Negative extends AgeError
+                    case object TooBig extends AgeError
+
+                    final class Age private (val age: Int)
+                    object Age {
+                      def fromInt(i: Int): Either[AgeError, Age] = 
+                        if (i < 0) Left(Negative)
+                        else if (i > 200) Left(TooBig)
+                        else Right(new Age(i))
+                    }
+                    ```
+                </textarea>
+        </section>
+      </section>
+    </div>
+  </div>
+
+  
+</body>
+
+</html>
