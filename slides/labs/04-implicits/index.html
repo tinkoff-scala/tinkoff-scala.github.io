@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <title>Lab 04 - Implicits in Action</title>
+  <script type="module" crossorigin src="/assets/vendor.ddd8df57.js"></script>
+  <script type="module" crossorigin src="/assets/main.467d0acf.js"></script>
+  <link rel="stylesheet" href="/assets/main.5ea68116.css">
+</head>
+
+<body>
+<div class="reveal">
+    <div class="slides">
+        <!--Intro-->
+        <section data-markdown>
+                <textarea data-template>
+                    ## Implicits in Action
+                    Lab 04
+                </textarea>
+        </section>
+        <section>
+            <section data-markdown>
+                    <textarea data-template>
+                    ### Show
+                    `Show` is an alternative to the Java's `toString` method. It is defined by a single function show:
+                    ```scala
+                    trait Show[A] {
+                      def show(a: A): String
+                    }
+                    ```
+
+                    But we have '.toString' from Java and pretty printing for case classes, why the heck do we need Show?)
+                    ---
+
+                    `toString` is defined on `Any`, meaning it can be called on any object, not only case class instances
+
+                    So, if we call `toString` for an object of class, like
+
+                    ```scala
+                    class Shrek()
+                    (new Shrek()).toString // Shrek@391c95b6
+                    ```
+
+                    jvm will print a reference on it
+
+                    Therefore, to have pretty printing only for desired data types Scala community came up with `Show`
+
+                    How implicits can make our usage of `Show` easier?</p>
+                    ---
+                    Implicit classes as a syntax extension!
+                    ```scala
+                    trait Show[A] {
+                      def show(a: A): String
+                    }
+                    object Show {
+                      implicit class ShowOps[A](a: A) {
+                        def show(implicit showA: Show[A]): String = showA.show(a)
+                      }
+                    }
+
+                    case class Student(name: String, age: Int, isBach: Boolean)
+                    object Student {
+                      implicit val show: Show[Student] = new Show[Student] {
+                        def show(student: Student): String =
+                          s"""Hi, my name is ${student.name}, age ${student.age}. I am a ${if (student.isBach) "bachelors" else "master"} student"""
+                      }
+                    }
+                    object Test extends App {
+                      import Show._
+                      val student = new Student("Shrek", 33, true)
+                      student.show // "Hi, my name is Shrek, age 33. I am a bachelors student"
+                      // Instead of calling Student.show.show(student)
+                    }
+                    ```
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                    <textarea data-template>
+                    ### Comparing instances of some type
+                    We can specify a natural order for any type in Scala using `Ordered`.
+                    It is an extension of `Comparable` interface from Java with additional relational operators
+
+                    ```scala
+                    trait Ordered[T] extends Comparable[T] {
+                      abstract def compare(that: T): Int
+                      def <(that: T): Boolean = // ...
+                      def <=(that: T): Boolean = // ...
+                      def >(that: T): Boolean = // ...
+                      def >=(that: T): Boolean = // ...
+                      def compareTo(that: T): Int = // ...
+                    }
+                    case class Value(i: Int) extends Ordered[Value] {
+                      def compare(that: Value) = this.i - that.i
+                    }
+                    ```
+                    ---
+                    Since we have an ordered instance for `Value` we can use methods that implicitly accepts `Ordered` instance
+
+                    ```scala
+                    val valueList = List(Value(1), Value(2), Value(3), Value(2), Value(1))
+                    valueList.sorted // List(Value(1), Value(1), Value(2), Value(2), Value(3))
+                    valueList.min // Value(1)
+                    ```
+                    ---
+                    As `Ordered` defines a natural order, only objects which has one can implement `Ordered`.
+                    Suppose we have
+
+                    ```scala
+                    case class Student(name: String, birthDate: Int, marks: Map[String, Int])
+                    ```
+
+                    How would you define a natural ordering for it?
+                    ---
+                    To solve that problem we have `Ordering`
+
+                    `Ordering` is a more general version of `Ordered`, that extends `Comparator` instead of `Comparable`.
+                    You can create more than one instance of it for your type and use the one you need
+
+                    ```scala
+                    import Ordering.Implicits._
+                    case class Student(name: String, year: Int, marks: Map[String, String])
+
+                    val orderByName: Ordering[Student] = Ordering.by[Student, String](_.name)
+                    val orderByYear: Ordering[Student] = Ordering.by[Student, Int](_.year)
+                    val orderByMarks: Ordering[Student] =
+                        Ordering.by[Student, Seq[String]](_.marks.values.toSeq)
+
+                    val students = List(
+                      Student("Mark", 2020, Map("math" -> "A", "succi" -> "C")),
+                      Student("Andy", 2021, Map("math" -> "A", "succi" -> "B"))
+                    )
+                    students.sorted(orderByName) // List(Student(Andy,2021,Map(math -> A, succi -> B)), Student(Mark,2020,Map(math -> A, succi -> C)))
+                    students.sorted(orderByYear) // List(Student(Mark,2020,Map(math -> A, succi -> C)), Student(Andy,2021,Map(math -> A, succi -> B)))
+                    students.sorted(orderByMarks) // List(Student(Andy,2021,Map(math -> A, succi -> B)), Student(Mark,2020,Map(math -> A, succi -> C)))
+                    ```
+                    ---
+                    We can even define a complex order considering more than one structure's field
+                    ```scala
+                    implicit val orderByNameThenYear: Ordering[Student] =
+                      Ordering[(String, Int)]
+                        .on[Student](student => (student.name, student.year))
+
+                    val students = List(
+                      Student("Andy", 2021, Map("math" -> "A", "succi" -> "C")),
+                      Student("Andy", 2020, Map("math" -> "A", "succi" -> "B"))
+                    )
+                    students.sorted // List(Student(Andy,2020,Map(math -> A, succi -> B)), Student(Andy,2021,Map(math -> A, succi -> C)))
+
+                    val students2 = List(
+                      Student(“Mark”, 2020, Map("math" -> "A", "succi" -> "C")),
+                      Student("Andy", 2021, Map("math" -> "A", "succi" -> "B"))
+                    )
+                    students2.sorted // List(Student(Andy,2021,Map(math -> A, succi -> B)), Student(mark,2020,Map(math -> A, succi -> C)))
+                    ```
+                </textarea>
+            </section>
+        </section>
+    </div>
+</div>
+
+
+</body>
+
+</html>

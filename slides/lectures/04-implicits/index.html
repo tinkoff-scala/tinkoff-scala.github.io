@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    
+    <title>Lecture 04 - Implicits</title>
+  <script type="module" crossorigin src="/assets/vendor.ddd8df57.js"></script>
+  <script type="module" crossorigin src="/assets/main.467d0acf.js"></script>
+  <link rel="stylesheet" href="/assets/main.5ea68116.css">
+</head>
+<body>
+<div class="reveal">
+    <div class="slides">
+        <!--Intro-->
+        <section data-markdown>
+			<textarea data-template>
+				## Implicits
+				Lecture 04
+            </textarea>
+        </section>
+
+        <!--Partial Functions-->
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Partial Functions
+
+                    Let's recall the example with `collect` combinator on collections
+
+                    ```scala [1-5]
+                    val vector = Vector(1, 2, 3)
+                    val result = vector.collect {
+                      case x if x == 2 => x
+                    }
+                    // result == Vector(2)
+                    ```
+
+                    ---
+
+                    Why do we have pattern matching that covers not all patterns and compiler doesn't warn us?
+
+                    ---
+
+                    The answer is hidden in the signature of the `collect` method
+
+                    ```scala [1-3]
+                    trait Vector[A] {
+                      def collect[B](f: PartialFunction[A, B]): Vector[B]
+                    }
+                    ```
+
+                    ---
+
+                    - Partial Function is a special function that is defined for not all domain values
+                    - Thus, compiler doesn't warn us about non-exhaustive pattern matching
+
+                    ---
+
+                    We cannot safely call `apply` on such functions. It may fail with an exception
+
+                    ```scala [1-5]
+                    val f: PartialFunction[Int, Int] =
+                      { case x if x == 2 => x }
+
+                    val result = f(2) // result = 2
+                    f(1) 			 // exception
+                    ```
+
+                    ---
+
+                    We can lift Partial Function to a regular function through `lift` method
+
+                    ```scala [1-3]
+                    trait PartialFunction[A, B] {
+                      def lift: A => Option[B]
+                    }
+                    ```
+
+                    ---
+
+                    So, finally, we can easily implement `collect` function
+
+                    ```scala [1-15]
+                    def collect[A, B](vector: Vector[A])
+                                     (f: PartialFunction[A, B]): Vector[B] = {
+                      val lifted = f.lift
+                      vector.foldLeft(Vector.empty[B]) { case (acc, el) =>
+                        lifted(el) match {
+                          case Some(value) => acc.appended(value)
+                          case None        => acc
+                        }
+                      }
+                    }
+                    ```
+
+                </textarea>
+            </section>
+        </section>
+
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Access Modifiers
+
+                    ---
+
+                    - Object-private
+                    - Private
+                    - Package
+                    - Package-specific
+                    - Public
+
+                    ---
+
+                    #### Object-private
+
+                    Only available for the instance of the object
+
+                    ```scala [1-15]
+                    private[this] val classSecret: Boolean = true
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    class Example {
+                      private[this] val classSecret: Boolean = true
+
+                      def doSomething(other: Example): Unit = {
+                        other.classSecret // this is forbidden
+                      }
+                    }
+                    ```
+
+                    ---
+
+                    #### Private
+
+                    Only available for the instances of one class
+
+                    ```scala [1-15]
+                    private val classSecret: Boolean = true
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    class Example {
+                      private val classSecret: Boolean = true
+
+                      def doSomething(other: Example): Unit = {
+                        other.classSecret // this is allowed
+                      }
+                    }
+
+                    new Example().classSecret // this is forbidden
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    class Animal {
+                      private def heartBeat: Unit {}
+                    }
+
+                    class Dog extends Animal {
+                      heartBeat  // this is forbidden
+                    }
+                    ```
+
+                    ---
+
+                    #### Protected
+
+                    Only available for the instances of class hierarchy
+
+                    ```scala [1-15]
+                    protected val classSecret: Boolean = true
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    class Example {
+                      protected val classSecret: Boolean = true
+
+                      def doSomething(other: Example): Unit = {
+                        other.classSecret // this is allowed
+                      }
+                    }
+
+                    new Example().classSecret // this is forbidden
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    class Animal {
+                      protected def heartBeat: Unit {}
+                    }
+
+                    class Dog extends Animal {
+                      heartBeat  // this is allowed
+                    }
+                    ```
+
+                    ---
+
+                    #### Package-specific
+
+                    ```scala [1-15]
+                    private[example] val classSecret: Boolean = true
+                    ```
+
+                    Only available in package `example`
+
+                    ---
+
+                    ```scala [1-15]
+                    package example
+
+                    class Example {
+                      private[example] val classSecret: Boolean = true
+
+                      def doSomething(other: Example): Unit = {
+                        other.classSecret // this is allowed
+                      }
+                    }
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    package example
+
+                    object Test {
+                      new Example().classSecret // this is allowed
+                    }
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    package other
+
+                    import example.Example
+
+                    object Test {
+                      new Example().classSecret // this is forbidden
+                    }
+                    ```
+                    ---
+
+                    More complex example
+
+                    ```scala [1-15]
+                    package my.cool.example
+
+                    class Example {
+                      private[example] val one: Boolean = true
+                      private[cool] val two: Boolean = true
+                    }
+
+                    ```
+                    ---
+
+                    ```scala [1-15]
+                    package my.cool.example.here {
+                      new Example().one // this is allowed
+                      new Example().two // this is allowed
+                    }
+
+                    package my.cool {
+                      new Example().one // this is forbidden
+                      new Example().two // this is allowed
+                    }
+
+                    package my {
+                      new Example().one // this is forbidden
+                      new Example().two // this is forbidden
+                    }
+                    ```
+
+                    ---
+
+                    #### Public
+
+                    ```scala [1-15]
+                    val classSecret: Boolean = true
+                    ```
+
+                    Available everywhere
+
+                </textarea>
+            </section>
+        </section>
+
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Imports
+
+                    ---
+
+                    You can import top-level objects from packages
+
+                    ```scala [1-15]
+                    package my.cool.example {
+                      object One
+                      class Two
+                      trait Three
+                    }
+
+                    package my.cool.other.example {
+                      import my.cool.other.example.{One, Two, Three}
+
+                      new Two()
+                    }
+                    ```
+
+                    ---
+
+                    You can import all top-level objects from a package
+
+                    ```scala [1-15]
+                    package my.cool.other.example {
+                      import my.cool.other.example._
+
+                      new Two()
+                    }
+                    ```
+
+                    ---
+
+                    You can import methods / values / variables from an object
+
+                    ```scala [1-15]
+                    package my.cool {
+                      object Example {
+                        val one: String = "one"
+                        def two: String = "two"
+                        var three: String = "three"
+                      }
+                    }
+
+                    package my.cool.other.example {
+                      import my.cool.other.Example.{one, two, three}
+
+                      object Test extends App { println(one) }
+                    }
+                    ```
+
+                    ---
+
+                    You can import methods / values / variables from an object instance
+
+                    ```scala [1-15]
+                    package my.cool {
+                      class Example {
+                        val one: String = "one"
+                        def two: String = "two"
+                        var three: String = "three"
+                      }
+                    }
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    package my.cool.other.example {
+                      object Test {
+                        def example(from: Example): Unit = {
+                          import from._
+                          println(one)
+                          println(two)
+                          println(three)
+                        }
+                      }
+                    }
+                    ```
+
+
+                </textarea>
+            </section>
+        </section>
+
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Implicit Arguments
+                    ---
+
+                    We will define separate trait for addition
+
+                    ```scala [1-3]
+                    trait Adder {
+                      def sum(i: Int, j: Int): Int
+                    }
+                    ```
+                    ---
+                    We can define some simple functions using `Adder`
+
+                    ```scala [1-5|1-2|4-5]
+                    def increment(base: Int)(adder: Adder): Int =
+                      adder.sum(base, 1)
+
+                    def sum(a: Int, b: Int)(adder: Adder): Int =
+                      adder.sum(a, b)
+                    ```
+                    ---
+
+                    And declare `Adder` implementation and some logic alongside
+
+                    ```scala [1-5|1-2|4-5]
+                    // anonymous class declaration
+                    val adder: Adder = (a, b) => a + b
+
+                    val summed = sum(1, 2)(adder) // summed = 3
+                    val result = increment(summed)(adder) // result = 4
+                    ```
+                    ---
+                    - Overall, we can use this default implementation of `Adder` in any place where `Adder` instance
+                    is needed
+                    - So why bothering with passing it to functions? It will be _great_ to write like this:
+
+                    ```scala [1-5|4-5]
+                    // anonymous class declaration
+                    val adder: Adder = (a, b) => a + b
+
+                    val summed = sum(1, 2) // summed = 3
+                    val result = increment(summed) // result = 4
+                    ```
+
+                    ---
+
+                    - Oh, wait. Scala has __`implicits`__ that specifically allow this behavior and even more
+
+                    ---
+
+                    - Let's start with function arguments
+                    - In order to automatically pass the arguments, we must specifically tell it to the compiler
+                    - We will do it with the __`implicit`__ keyword
+
+                    ```scala [1-3]
+                    def increment(base: Int)(implicit adder: Adder): Int =
+                      adder.sum(base, 1)
+
+                    def sum(a: Int, b: Int)(implicit adder: Adder): Int =
+                      adder.sum(a, b)
+                    ```
+
+                    ---
+
+                    Now think - what restrictions on such arguments can we have?
+
+                    ---
+
+                    - All __`implicit`__ argument types must be unique. No duplications
+                    - This avoids __ambiguities__ during implicit resolution while compiling
+
+                    ```scala [1-8|3-6]
+                    // Invalid syntax
+                    def incrementBad(base: Int)(implicit
+                      // Compiler doesn't know for sure
+                      // which Adder instance to pass where
+                      adderOne: Adder,
+                      adderTwo: Adder
+                    ): Int =
+                    adder.sum(base, 1)
+                    ```
+
+                    ---
+
+                    Only one last argument list can be __`implicit`__
+
+                    ```scala [1-5]
+                    // Invalid syntax
+                    def incrementBad(base: Int)
+                      (implicit multiplier: Multiplier)
+                      (implicit adder: Adder): Int =
+                      adder.sum(base, 1)
+                    ```
+                    ---
+
+                    Better to rewrite the bad example. Let's put arguments
+                    in one argument list:
+
+                    ```scala [1-4|2-3]
+                    def incrementGood(base: Int)(implicit
+                      adder: Adder,
+                      multiplier: Multiplier
+                    ): Int = adder.sum(base, 1)
+                    ```
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    - Okay. We have functions that can take __`implicit`__ arguments
+                    - How do we pass the values to the arguments?
+
+                    ---
+
+                    - Simple answer - again using __`implicit`__ keyword
+
+                    ---
+                    ### Implicit Values
+
+                    - Values can be __`implicit`__
+                    - This means that this particular value belongs
+                    to __`implicit`__ scope and can be automatically passed as
+                    an __`implicit`__ argument
+
+                    ---
+
+                    - Let's return to the previous example and rewrite it
+                    to correct Scala syntax:
+
+                    ```scala [1-10|1-5|7|9-10]
+                    def sum(a: Int, b: Int)(implicit adder: Adder): Int =
+                      adder.sum(a, b)
+
+                    def increment(a: Int)(implicit adder: Adder): Int =
+                      adder.sum(a, 1)
+
+                    implicit val adder: Adder = (a, b) => a + b
+
+                    val summed = sum(1, 2) // summed = 3
+                    val result = increment(summed) // result = 4
+                    ```
+
+                    ---
+
+                    - This __`implicit`__ value still acts like an ordinary value
+
+                    ```scala [1-3]
+                    implicit val adder: Adder = (a, b) => a + b
+
+                    val result = adder.sum(1, 2)
+                    ```
+
+                    ---
+
+                    - This __`implicit`__ value can be passed __explicitly__ as an argument
+
+                    ```scala [1-4|3-4]
+                    implicit val adder: Adder = (a, b) => a + b
+
+                    val summed = sum(1, 2)(adder) // summed = 3
+                    val result = increment(summed)(adder) // result = 4
+                    ```
+
+                    ---
+
+                    ### Implicit Scopes
+
+                    ---
+
+                    ### Local Scope
+
+                    - Function with __`implicit`__ arguments that is called in the same scope
+                    as __`implicit`__ value can use these __`implicit`__ values
+
+                    ---
+
+                    Example
+                    ```scala [1-12|1-2|5|6|8|12]
+                    def increment(a: Int)(implicit adder: Adder): Int =
+                      adder.sum(a, 1)
+
+                    {
+                      implicit val adder: Adder = (a, b) => a + b
+                      val one = increment(0) // Can see `adder`
+                      {
+                        val two = increment(1) // Can see `adder`
+                      }
+                    }
+
+                    val three = increment(2) // Cannot see `adder`
+                    ```
+
+                    ---
+                    - Local scope cannot have multiple __`implicit`__ values of the same type
+                    - Compiler will fail due to __ambiguity__
+
+                    ```scala [1-7]
+                    {
+                      implicit val adder: Adder = (a, b) => a + b
+                      implicit val specialAdder: Adder = (a, b) => a + b + 1
+                      // multiple implicit values of type Adder in scope
+                      val one = increment(0)
+                    }
+                    ```
+                    ---
+
+                    ### Imported Scope
+
+                    - We can declare __`implicit`__ values in `objects` and import them in place
+                    with underscore __`_`__
+
+                    ---
+
+                    Example
+
+                    ```scala [1-3]
+                    object Adders {
+                      implicit val adder: Adder = (a, b) => a + b
+                    }
+                    ```
+                    ---
+
+                    ```scala [1-12|1-2|5|6|8|12]
+                    def increment(a: Int)(implicit adder: Adder): Int =
+                      adder.sum(a, 1)
+
+                    {
+                      import Adders._ // import Adders.adder also works
+                      val one = increment(0) // Can see `adder`
+                      {
+                        val two = increment(1) // Can see `adder`
+                      }
+                    }
+
+                    val three = increment(2) // Cannot see `adder`
+                    ```
+
+                    ---
+
+                    ### Companion Object Scope
+
+                    Global implicit scope
+
+                    ---
+                    - If you place an __`implicit`__ value of the type in its `companion object`, then
+                    the __`implicit`__ value will be visible everywhere
+                    - No need for imports
+
+                    ---
+
+                    Example
+                    ```scala [1-7]
+                    trait Adder {
+                      def sum(i: Int, j: Int): Int
+                    }
+
+                    object Adder {
+                      implicit val adder: Adder = (a, b) => a + b
+                    }
+                    ```
+
+                    ---
+
+                    Example
+                    ```scala [1-11|5|7|11]
+                    def increment(a: Int)(implicit adder: Adder): Int =
+                      adder.sum(a, 1)
+
+                    {
+                      val one = increment(0) // Can see `adder`
+                      {
+                        val two = increment(1) // Can see `adder`
+                      }
+                    }
+
+                    val three = increment(2) // Can see `adder`
+                    ```
+
+                    ---
+                    ### Scope Precedence
+
+                    - All three scopes can co-exist with each other
+                    - Compiler looks for implicits in this order:
+
+                    1. Local Scope
+                    2. Imported Scope
+                    3. Companion Scope
+
+                    ---
+
+                    Example
+
+                    ```scala [1-13|5,8,10,11|10|13]
+                    trait Adder {
+                      def sum(a: Int, b: Int): Int = a + b
+                    }
+                    object Adder {
+                      implicit val adder: Adder = (a, b) => a + b
+                    }
+                    object Adders {
+                      implicit val defaultAdder: Adder = (a, b) => a + b
+                    }
+                    implicit val localAdder: Adder = (a, b) => a + b
+                    import Adders._
+
+                    increment(1) // Will use `localAdder`
+                    ```
+
+                    ---
+
+                    - If we remove __`implicit`__ value from the scope, import scope will be chosen
+
+                    ```scala [1-12|5,8,10|8,10|12]
+                    trait Adder {
+                      def sum(a: Int, b: Int): Int = a + b
+                    }
+                    object Adder {
+                      implicit val adder: Adder = (a, b) => a + b
+                    }
+                    object Adders {
+                      implicit val defaultAdder: Adder = (a, b) => a + b
+                    }
+                    import Adders._
+
+                    increment(1) // Will use `defaultAdder`
+                    ```
+
+                    ---
+
+                    - If we remove imported __`implicit`__ value, then companion scope will be searched
+
+                    ```scala [1-11|5,8|5|11]
+                    trait Adder {
+                      def sum(a: Int, b: Int): Int = a + b
+                    }
+                    object Adder {
+                      implicit val adder: Adder = (a, b) => a + b
+                    }
+                    object Adders {
+                      implicit val defaultAdder: Adder = (a, b) => a + b
+                    }
+
+                    increment(1) // Will use `adder`
+                    ```
+                    ---
+                    ### Summoning
+
+                    Consider this function:
+
+                    ```scala [1-2]
+                    def implicitly[T](implicit value: T): T =
+                      value
+                    ```
+
+                    ---
+                    - This function looks up __`implicit`__ value for some type and returns it
+                    - Is a part of `Scala.Predef`` (standard library)
+
+                    ```scala [1]
+                    val result = implicitly[Adder].sum(1, 2) // result = 3
+                    ```
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Implicit Defs
+
+                    In Scala, we have not only __`implicit`__ values and arguments. We also
+                    have __`implicit`__ defs
+
+                    ---
+                    ### Implicit Derivation
+
+                    We can create or _derive_ __`implicit`__ values from other __`implicit`__ values
+
+                    ---
+
+                    - Let's define a trait __`ShowInt`__ that allows to convert `Int` to `String`
+
+                    ```scala [1-7]
+                    trait ShowInt {
+                      def show(a: Int): String
+                    }
+
+                    object ShowInt {
+                      implicit val showInt: ShowInt = a => a.toString
+                    }
+                    ```
+                    ---
+
+                    Same trait for BigDecimal
+                    ```scala [1-7]
+                    trait ShowBigDecimal {
+                      def show(a: BigDecimal): String
+                    }
+                    object ShowBigDecimal {
+                      implicit val showBigDecimal: ShowBigDecimal =
+                        a => a.toString
+                    }
+                    ```
+
+                    ---
+
+                    - And now let's define composite trait `ShowPerson` for class `Person`
+
+                    ```scala [1-15]
+                    class Person(
+                      val name: String,
+                      val age: Int,
+                      val money: BigDecimal
+                    )
+
+                    trait ShowPerson {
+                      def show(a: Person): String
+                    }
+                    ```
+                    ---
+                    ```scala [1-15]
+                    object ShowPerson {
+                      implicit def showPerson(implicit
+                        showInt: ShowInt,
+                        showBigDecimal: ShowBigDecimal
+                      ): ShowPerson = { person =>
+                        val name = person.name
+                        val age = showInt.show(person.age)
+                        val money = showBigDecimal.show(person.money)
+                          s"Person($name, $age, $money)"
+                      }
+                    }
+                    ```
+                    ---
+
+                    - We used other __`implicit`__ values for types `ShowInt` and `ShowBigDecimal` to
+                    define an __`implicit`__ value for type `ShowPerson`
+
+                    - In other words, we derived `implicit` value for `ShowPerson`
+
+                    ---
+                    - Because there are global implicit values for `ShowInt` and `ShowBigDecimal`,
+                    we can easily summon `ShowPerson` and use it:
+
+                    ```scala [1-3]
+                    val person = new Person("Ivan", 23, -1,5)
+                    println(implicitly[ShowPerson].show(person))
+                    // sys.out = Person(Ivan, 23, -1,5)
+                    ```
+
+                    ---
+
+                    ### Implicit Conversions
+
+                    ---
+
+                    - If we define __`implicit`__ def with only one explicit argument,
+                    then it will be treated as conversion function
+
+                    ```scala [1-5]
+                    implicit def intToString(i: Int): String = i.toString
+
+                    val i: Int = 1
+                    // implicitly apply function intToString
+                    val str: String = i
+                    ```
+
+                    ---
+                    It will be equal to this
+                    ```scala [1-2]
+                    val i: Int = 1
+                    val str: String = intToString(i)
+                    ```
+
+                    ---
+
+                    - You cannot define __`implicit`__ def with more than one explicit argument
+
+                    ---
+
+                    - Such conversion functions can be treated as an __`implicit`__ value of function type
+
+                    ```scala [1-6|1|3|6]
+                    implicit def intToString(i: Int): String = i.toString
+
+                    def print(i: Int)(implicit convert: Int => String): Unit =
+                      println(convert(i))
+
+                    print(1) // sys.out = 1
+                    ```
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Implicit Classes
+                    or Syntax Extensions
+
+                    ---
+
+                    - We can define additional methods (extension methods) for any type through
+                    __`implicit`__ classes
+
+                    ---
+
+                    - Let's consider an example. We want to define a method to convert `Int` to `WeekDay`
+
+                    ```scala [1-15]
+                    sealed trait WeekDay
+                    object WeekDay {
+                    case object Working extends WeekDay
+                    case object Resting extends WeekDay
+
+                    def fromInt(i: Int): Option[WeekDay] =
+                      i match {
+                        case x if 1 <= x && x <= 5 => Some(Working)
+                        case x if 6 <= x && x <= 7 => Some(Resting)
+                        case _ => None
+                      }
+                    }
+                    ```
+
+                    ---
+
+                    - Usage of this function is still verbose. Let's make it more concise
+
+                    ```scala [1]
+                    val result = WeedDay.fromInt(1)
+                    ```
+
+                    ---
+
+                    - Let's define an __`implicit`__ class with a new method `toWeekDay`
+
+                    ```scala [1-15]
+                    implicit class IntWeekDayOps(val i: Int)
+                      extends AnyVal {
+
+                      def toWeekDay: Option[WeekDay] =
+                        WeekDay.fromInt(i)
+                    }
+                    ```
+
+                    ---
+                    - Now if __`implicit`__ class is in __`implicit`__ scope, then
+                    we can use method `toWeekDay` on values of type `Int`
+
+                    ```scala [1-3]
+                    val monday: Int = 1
+                    val one = monday.toWeekDay // one = Some(Working)
+                    val two = 0.toWeekDay      // two = None
+                    ```
+
+                    ---
+
+                    - __`implicit`__ class is implemented through __`implicit`__ def and ordinary class.
+                    - So, it desugars to this:
+
+                    ```scala [1-15]
+                    class IntWeekDayOps(val i: Int) {
+                      def toWeekDay: Option[WeekDay] = WeekDay.from(i)
+                    }
+
+                    implicit def IntWeekDayOpsDerive(i: Int): IntWeekDayOps =
+                      new IntWeekDayOps(i)
+                    ```
+
+                    ---
+
+                    Knowing that, what constraints do we have for __`implicit`__ classes?
+
+                    ---
+
+                    - Only one explicit argument in the constructor of the class because of __`implicit`__ def
+                    - Must be defined in the `object` / `class` / `trait`. No high-level definition
+                    because of `def`
+
+                    ---
+
+                    - Standard library has a good example of the usage of the __`implicit`__ classes: concise
+                    creation of durations
+
+                    ```scala [1-4|3-4]
+                    import scala.concurrent.duration._
+
+                    val sec: FiniteDuration = 1.second
+                    val hour: FiniteDuration = 1.hour
+                    ```
+
+                    ---
+
+                    ## Questions?
+                </textarea>
+            </section>
+        </section>
+    </div>
+</div>
+
+
+</body>
+</html>
