@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <title>Lecture 05 - Generics</title>
+  <script type="module" crossorigin src="/assets/vendor.ddd8df57.js"></script>
+  <script type="module" crossorigin src="/assets/main.467d0acf.js"></script>
+  <link rel="stylesheet" href="/assets/main.5ea68116.css">
+</head>
+
+<body>
+  <div class="reveal">
+    <div class="slides">
+      <section>
+        <section data-markdown>
+          <textarea data-template>
+                    ## Generics
+                    Lecture 05
+                    - History of generics
+                    - Type erasure and monomorphization
+                    - Type bounds
+                    - Variance
+                </textarea>
+        </section>
+      </section>
+
+      <section>
+        <section data-markdown>
+          <textarea data-template>
+                    Java 1.4
+                    ```java
+                    List v = new ArrayList();
+                    v.add("test");
+                    Integer i = (Integer)v.get(0);
+                    ```
+                    Java 1.5
+                    ```java
+                    List<String> v = new ArrayList<String>();
+                    v.add("test");
+                    String i = v.get(0);  // compiles, no need to cast
+                    Integer j = v.get(0);  // compile error
+                    ```
+
+                    Both snippets compile on latest Java
+                    ---
+                    ```java
+                    public class ArrayList<E> implements List<E> {
+                      private Object[] elementData;
+                      private int size;
+                  
+                      public E get(int index) {
+                        return (E) elementData[index];
+                      }
+                    }
+                    ```
+                    Fully backwards-compatible with
+                    ```java
+                    public class ArrayList implements List {
+                      private Object[] elementData;
+                      private int size;
+                  
+                      public Object get(int index) {
+                        return elementData[index];
+                      }
+                    }
+                    ```
+                    ---
+                    * 1986 – "What is OOP?" paper by Stroustrup proposing templates for C++.
+                    * 1993 – "Monads for functional programming" paper by **Philip Wadler**.
+                    * 1998 – Philip Wadler, **Martin Odersky**, Gilad Bracha, Dave Stoutamire introduce Generic Java, an extension to Java.
+                    ---
+                    * 2001 – Odersky and others work on Pizza, a Java-compatible language with support for generics and ADTs.
+                    * 2004 – Incorporation of Generic Java into official Java 1.5 release. 
+                    * 2006 – Release of Scala 2 by Martin Odersky
+                    * 2020 – "Featherweight Go" paper by Philip Wadler, introducing generics in Go.
+                </textarea>
+        </section>
+      </section>
+
+      <section>
+        <section data-markdown>
+          <textarea data-template>
+                    ### Type Erasure
+                    Each generic type and method generates only one copy of itself.
+                    
+                    Type parameters are erased after compilation.
+                    ```scala
+                    class Option[+T]
+                    ```
+                    compiles to bytecode equivalent of
+                    ```scala
+                    class Option
+                    ```
+
+                    The runtime classes are also equal:
+                    ```scala
+                    (new Option[Int]).getClass == (new Option[String]).getClass
+                    ```
+                    ---
+                    This overloading is possible:
+                    ```scala
+                    def greet(cat: Cat): Unit = {}
+                    def greet(dog: Dog): Unit = {}
+                    ```
+                    This is a compile error:
+                    ```scala
+                    def greet(cats: List[Cat]): Unit = {}
+                    def greet(cats: List[Dog]): Unit = {}
+                    ```
+                    Methods are overloaded based on their arguments' classes after erasure.
+                    ---
+                    Pattern-matching on erased types is not possible.
+
+                    This results in a `ClassCastException` at runtime or a compile error.
+                    ```
+                    val a: List[Cat] = List(new Cat)
+                    // a.isInstanceOf[List[Dog]] == true
+                    a match {
+                      case i: List[Dog] => i.foreach(_.bark())
+                      case i: List[Cat] => i.foreach(_.meow())
+                    }
+                    ```
+                    ---
+                    Implicit resolution is done before erasure.
+
+                    ```scala
+                    trait Greet[T] {
+                      def greet(): Unit
+                    }
+                    object Greet {
+                      implicit val dogs: Greet[List[Dog]] = () => println("Bark")
+                      implicit val cats: Greet[List[Cat]] = () => println("Meow")
+                    }
+
+                    def auf[T](list: T)(implicit greet: Greet[T]): Unit =
+                      greet.greet()
+                    auf(List(new Dog))  // prints "Bark"
+                    auf(List(1, 3, 3, 7))  // implicit not found compile error
+                    ```
+                </textarea>
+        </section>
+      </section>
+      <section>
+        <section data-markdown>
+          <textarea data-template>
+                  ### Monomorphization
+                  An alternative technique to implementing generics. Monomorphization creates a copy of a generic class for each combination of used type parameters.
+
+                  ```scala
+                  sealed trait Option[+T]
+
+                  def printOpt[T](i: Option[T]): Unit = i.foreach(println)
+                  printOpt(Some(1))
+                  println(Some("Test"))
+                  ```
+                  compiles to
+                  ```scala
+                  sealed trait Option_Int
+                  sealed trait Option_String
+
+                  def printOpt_Int(i: Option_Int): Unit = i.foreach(println)
+                  printOpt_Int(Some(1))
+                  println(Some("Test"))
+                  ```
+                  ---
+                  ### Problems
+
+                  Code bloating – active use generics results in a large amount of generated code.
+
+                  Irrepresentability of polymorphic recursion.
+                  ---
+                  Complete binary tree – always has `2^n` elements.
+                  ```scala
+                  sealed trait CompleteBinTree[+T]
+                  object CompleteBinTree {
+                    case class Leaves[+T](value: T) 
+                      extends CompleteBinTree[T]
+                    case class Branch[+T](tree: CompleteBinTree[(T, T)]) 
+                      extends CompleteBinTree[T]
+                  }
+                  ```
+                  The simplest case of monomorphization for `CompleteBinTree[Int]` results in an infinite amount of types at compile time.
+                  ---
+                  ### Languages with monomorphization
+
+                  Most systems languages – C++, Rust, D, others.
+
+                  Proposals for Go 2.
+
+                  C#, but with a twist – monomorphization happens in runtime by the virtual machine.
+
+                  Scala – wait, what?
+                  ---
+                  ### Specialization
+                  This is a trick to reduce overhead from boxing when dealing with primitive types. 
+                  ```scala
+                  class Kek[@specialized(Specializable.Return) +T]
+                  object Test extends App {
+                    println(new Kek[Int].getClass.getName)    // Kek$mcI$sp
+                    println(new Kek[Unit].getClass.getName)   // Kek$mcV$sp
+                    println(new Kek[String].getClass.getName) // Kek
+                    println(new Kek[Object].getClass.getName) // Kek
+                  }
+                  ```
+                  In this case we generate 6 additional classes for each primitive type from `Specializable.Return`.
+              </textarea>
+        </section>
+      </section>
+      <section>
+        <section data-markdown>
+          <textarea data-template>
+                ### Type bounds
+
+                We can add subtyping (`A <: B` and `A >: B`) requirements to type parameters of types and methods. 
+
+                ```scala
+                val mutableCats = mutable.ArrayBuffer[Cat]()
+                mutableCats.addOne(new Cat)
+
+                def greet[T <: Animal](animals: mutable.ArrayBuffer[T]) = 
+                  animals.foreach(_.greet)
+                // bounded existential type:
+                def greet(animals: mutable.ArrayBuffer[_ <: Animal]) = 
+                  animals.foreach(_.greet)
+                // this does not compile:
+                def addCat[T <: Animal](animals: mutable.ArrayBuffer[T]) =
+                    animals.addOne(new Cat)
+                // this does:
+                def addCat[T >: Cat](cats: mutable.ArrayBuffer[T]) =
+                    animals.addOne(new Cat)
+                ```
+                ---
+                ```scala
+                class Animal
+                class Cat extends Animal
+                class BrownCat extends Cat
+                class WhiteCat extends Cat
+
+                class Cell[T](private var i: T) {
+                  def get: T = i
+                  def set(v: T): Unit = { i = v }
+                }
+
+                val cell = new Cell[Cat](new Cat)
+                cell.set(new BrownCat)  // works
+                call.set(new Animal)  // fails
+                ```
+                ---
+                ```scala
+                trait Cell[T] {
+                  def get: T
+                  def set(v: T): Unit
+                }
+
+                trait Cell[T] {
+                  def get[O >: T]: O
+                  def set[O <: T](v: O): Unit
+                }
+                ```
+                ---
+                ```scala
+                sealed trait Option[+T] {
+                  def getOrElse[B >: T](orElse: => B): B =
+                    if (isEmpty) orElse else this.get
+                }
+                ```
+          </textarea>
+        </section>
+      </section>
+      <section>
+        <section data-markdown>
+          <textarea data-template>
+              ### Type Relation Evidences
+              Besides type bounds, there are special types representing subtyping and type equality relations.
+
+              ```scala
+              sealed abstract class <:<[-From, +To] extends (From => To)
+              sealed abstract class =:=[From, To] extends (From <:< To) {
+                def flip: To =:= From
+              }
+              ```
+              These types carry the subtyping relationship into the type system.
+              ---
+              Both `<:<` and `=:=` are singleton types, and they both have only one runtime value:
+              ```scala
+              object <:< {
+                private val singleton: =:=[Any, Any] = new (Any =:= Any) {
+                  override def apply(x: Any) = x
+                }
+                implicit def refl[A]: A =:= A =
+                  singleton.asInstanceOf[A =:= A]
+              
+                def antisymm[A, B](implicit 
+                    l: A <:< B,
+                    r: B <:< A
+                ): A =:= B = singleton.asInstanceOf[A =:= B]
+              }
+              ```
+              This uses generally unsafe type casting, but for this type it is provably correct.
+              ---
+              Type evidences are used in places where using type bounds in not possible, for example in methods of generic types:
+              ```scala
+              sealed trait Option[+T] {
+                def flatten[B](implicit ev: T <:< Option[B]): Option[B] =
+                  if (isEmpty) None else ev(this.get)
+              }
+              ```
+              `flatten` can be called only on `Option[Option[B]]`, but it is defined on a more generic type.
+          </textarea>
+        </section>
+      </section>
+      <section>
+        <section data-markdown>
+          <textarea data-template>
+              ### Variance
+              Like subtyping, it is an attribute of a type parameter. It introduces a subtyping rule based on subtyping of the type parameters.
+
+              There are three variance types: covariance, contravariance, and invariance – combination of the first two.
+              ```scala
+              sealed trait Option[+T]
+              trait Function1[-I, +T]
+              class ArrayBuffer[T]
+              ```
+              ---
+              ### Covariance
+              ```scala
+              sealed trait Option[+T]
+              ```
+              For any `A <: B` there is `Option[A] <: Option[B]`
+
+              This type of variance is often used for immutable collections and factories – interfaces which return values.
+
+              ```scala
+              trait RandomGenerator[+T] {
+                def generate(): T
+              }
+              ```
+              ---
+              ```scala
+              val a: Option[Cat] = Some(new Cat)
+              val b: Option[Animal] = a  // coersion via subtyping
+
+              val c: Option[List[Cat]] = Some(List(new Cat))
+              val d: Option[Seq[Cat]] = c  // List[T] <: Seq[T]
+              val e: Option[List[Animal]] = c  // List[Cat] <: List[Animal]
+              val d: Option[Seq[Animal]] = c
+              ```
+              ---
+              Covariant type parameters cannot have the type in contravariant and invariant positions.
+              An example of contravariant position is a function argument.
+
+              
+              ```scala
+              trait Consume[+T] {
+                def consume(v: T): Unit // does not compile
+              }
+              ```
+              ---
+              ### Contravariance
+              
+              For any `A <: B` there is `Consume[B] <: Consume[A]` – the relation between subtypings is inversed.
+
+              ```scala
+              trait Consume[-T] {
+                def consume(v: T): Unit // compiles
+              }
+              ```
+
+              It is often used for arguments in functions and consumers – interfaces which accept a value instead of returning it.
+              ---
+              The most used contravariant type is function:
+
+              ```scala 
+              trait Function1[-I1, +O] {
+                def apply(v1: I1): O
+              }
+              trait Function2[-I1, -I2, +O] {
+                def apply(v1: I1, v2: I2): O
+              }
+              ```
+              ---
+              ```scala
+              val a: (Animal => Unit) = { _ => () }
+              // Cat <: Animal => Function1[Animal, Unit] <: Function1[Cat, Unit]
+              val b: (Cat => Unit) = a  
+
+              val c: ((Cat => Unit) => Unit) = { f => f(new Cat) }
+              // Cat <: Animal => Function1[Animal, Unit] <: Function1[Cat, Unit]
+              // => Function1[Function1[Cat, Unit], Unit] <: Function1[Function1[Animal, Unit], Unit]
+              val d: ((Animal => Unit) => Unit) = c
+              ```
+              ---
+              ### Invariance
+              Combination of both covariance and contravariance
+              ```
+              A =:= B =>
+              mutable.List[A] =:= mutable.List[B]
+              ```
+              Used for mutable collections and other types which are in both covariant and contravariant positions.
+              ---
+              ```scala
+              type F1[-T] = T => Unit
+              type F2[T] = T => T
+              type F3[+T] = Unit => T
+              ```
+          </textarea>
+        </section>
+      </section>
+    </div>
+  </div>
+
+  
+</body>
+
+</html>

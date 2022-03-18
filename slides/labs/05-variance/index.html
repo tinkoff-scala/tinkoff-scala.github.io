@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    
+    <title>Lab 05 - Variance</title>
+  <script type="module" crossorigin src="/assets/vendor.ddd8df57.js"></script>
+  <script type="module" crossorigin src="/assets/main.467d0acf.js"></script>
+  <link rel="stylesheet" href="/assets/main.5ea68116.css">
+</head>
+
+<body>
+<div class="reveal">
+    <div class="slides">
+        <!--Intro-->
+        <section data-markdown>
+                <textarea data-template>
+                    ## Variance
+                    Lab 05
+                </textarea>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Variance
+                    #### Covariance
+                    If we have a type constructor `F[+_]`, then `F[B]` is a subtype of `F[A]` if `B` is a subtype of `A`
+
+                    For example we want to implement our own testing framework:
+                    ```scala
+                    sealed trait Test
+                    object Test {
+                        class UnitTest extends Test
+                        class IntegrationTest extends UnitTest
+                        class SystemTest extends IntegrationTest
+                    }
+
+                    class TestSuite[+T](tests: Seq[T]) {
+                        def run: Unit = ???
+                    }
+                    ```
+                    ---
+                    What tests can have such a `TestSuite`:
+                    ```scala
+                    val suite: TestSuite[Test] = new TestSuite[UnitTest](???)
+                    ```
+                    ---
+                    ```scala
+                    val suite: TestSuite[Test] =
+                        new TestSuite[UnitTest](Seq(new UnitTest, new IntegrationTest, new SystemTest))
+                    ```
+                    ---
+                    Okay, then can we do this?
+                    ```scala
+                    val suite: TestSuite[IntegrationTest] =
+                        new TestSuite[UnitTest](Seq(new UnitTest, new IntegrationTest, new SystemTest))
+                    ```
+                    ---
+                    No, compiler will fail and tell that it has received `TestSuite[UnitTest]`
+                    ![](https://i.imgur.com/zur0zem.png)
+                    ---
+                    Using variance, we can run all tests with a generic TestRunner:
+                    ```scala
+                    sealed trait Test
+                    object Test {
+                        class UnitTest extends Test
+                        class IntegrationTest extends UnitTest
+                        class SystemTest extends IntegrationTest
+                    }
+                    class TestSuite[+T](tests: Seq[T]) {
+                        def run: Unit = ???
+                    }
+                    class TestRunner[+T](suites: Seq[TestSuite[T]]) {
+                        def run: Unit = suites.map(_.run)
+                    }
+                    val unitTests: TestSuite[UnitTest] = new TestSuite(Seq(new UnitTest))
+                    val integrationTests: TestSuite[IntegrationTests] = new TestSuite(Seq(new IntegrationTest))
+                    val runner: TestRunner[Test] =
+                        new TestRunner(Seq(unitTests, integrationTests))
+                    runner.run
+                    ```
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    #### Contravariance
+                    Covariance was an easy concept because it reflects the standard behavior of subtyping
+
+                    Now hard times come: a type constructor `F[-_]` is contravariant if `B` is a subtype of type `A` and
+                    `F[A]` is a subtype of type `F[B]`
+                    ---
+                    Imagine that we want to have assertions in out Test Framework
+                    ```scala
+                    class Assert[-T](expr: T => Boolean) {
+                      def assert(target: T): Boolean = expr(target)
+                    }
+
+                    trait Asserts[T] {
+                      def asserts: List[Assert[T]]
+                      def execute(target: T): Boolean =
+                        asserts
+                          .map(a => a.assert(target))
+                          .reduce(_ && _)
+                    }
+
+                    class Person(val name: String)
+                    class Employee(name: String, val salary: Int) extends Person(name)
+                    class Manager(name: String, salary: Int, val manages: List[Employee]) extends Employee(name, salary)
+
+                    val personAssert = new Assert[Person](p => p.name == "Alice")
+                    val employeeAssert = new Assert[Employee](e => e.name == "Bob" && e.salary > 1000)
+                    val managerAssert = new Assert[Manager](m => m.manages.nonEmpty)
+
+                    class AssertsEmployee(val asserts: List[Assert[Employee]]) extends Asserts[Employee]
+                    ```
+                    What kind of `Assert` can we test on an `Employee`?
+                    ---
+                    Can we do this:
+                    ```scala
+                    val bob = new Employee("Bob", 5000)
+                    val asserts = new AssertsEmployee(List(employeeAssert, personAssert))
+                    asserts.execute(bob)
+                    ```
+                    Or this:
+                    ```scala
+                    val bob = new Employee("Bob", 5000)
+                    val asserts = new AssertsEmployee(List(employeeAssert, managerAssert))
+                    asserts.execute(bob)
+                    ```
+                    ---
+                    Only the first variant is correct because `Assert` is contravariant.
+                    `Assert[Person]` is a subtype of `Assert[Employee]` because `Employee` is a subtype of `Person`
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    #### Invariance
+                    Type constructor `F[_]` is invariant if any subtype relationship between types `A` and `B`
+                    is not preserved in any order between types `F[A]` and `F[B]`
+
+                    ```scala
+                    class Assert[T](expr: T => Boolean) {
+                      def assert(target: T): Boolean = expr(target)
+                    }
+
+                    val personAssert: Assert[Person] = new Assert[Employee](p => p.name == "Alice")
+                    ```
+                    ![](https://i.imgur.com/twfbZVj.png)
+                </textarea>
+            </section>
+        </section>
+    </div>
+</div>
+
+
+</body>
+
+</html>
