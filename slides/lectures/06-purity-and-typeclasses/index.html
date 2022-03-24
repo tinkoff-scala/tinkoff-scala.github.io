@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    
+    <title>Lecture 05 - Purity & Typeclasses</title>
+  <script type="module" crossorigin src="/assets/vendor.ddd8df57.js"></script>
+  <script type="module" crossorigin src="/assets/main.467d0acf.js"></script>
+  <link rel="stylesheet" href="/assets/main.5ea68116.css">
+</head>
+<body>
+<div class="reveal">
+    <div class="slides">
+        <!--Intro-->
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## Purity & Typeclasses
+                    Lecture 06
+
+                    ---
+                    ## Pure Functions
+
+                    What is a pure function?
+
+                    ---
+
+                    Pure function is a function that has following properties:
+
+                    1. It returns identical result for identical arguments
+                    2. It produces no side effects
+
+                    ---
+
+                    Is this function pure?
+
+                    ```scala [1-4]
+                    import scala.util.Random
+
+                    def increment1(x: Int): Int =
+                      x + Random.nextInt(5)
+                    ```
+
+                    ---
+
+                    No, it is __not__. It may produce different results for the same argument
+
+                    ```scala [1-4]
+                    val x = increment1(1)  // x = 2
+                    val y = increment1(1)  // y = 3
+
+                    println(x == y) // false
+                    ```
+
+                    ---
+                    And is this function pure?
+
+                    ```scala [1-4]
+                    import scala.util.Random
+
+                    def increment2(x: Int): Int =
+                      x + (new Random(x)).nextInt(5)
+                    ```
+
+                    ---
+
+                    - Formally, it is. It produces random but unique results.
+                    - Constructor of __`Random`__ sets random seed.
+                    - Seed is the same for the same argument, thus produces the same result
+
+                    ---
+
+                    Okay, and is this function pure?
+
+                    ```scala [1-4]
+                    def increment3(x: Int): Int = {
+                      println(s"Input argument: $x")
+                      x + 1
+                    }
+                    ```
+
+                    ---
+                    - This function satisfies the first property of purity. It produces the same result for
+                    the same argument
+                    - However, it violates the second property. It, in fact, produces a __side effect__.
+
+                    ---
+                    ## Side Effect
+
+                    What is a side effect?
+
+                    ---
+                    Side effect is a modification of some (global) state outside of the local scope
+                    ---
+
+                    - We can say, that there is a global state - standard output
+                    - Thus, each call of `increment3` function will modify the standard output
+
+                    ```scala [1-4]
+                    val x = increment3(1) // stdout: 1; x = 1
+                    val y = increment3(1) // stdout: 1, 1; x = 1
+
+                    println(x == y) // true
+                    ```
+                    ---
+
+                    - Another example of a side effect
+                    - Modification of a variable outside of a function scope
+
+                    ```scala [1-6]
+                    var result = 0
+
+                    def increment4(x: Int): Int = {
+                      result += x
+                      x + 1
+                    }
+                    ```
+                    ---
+
+                    ## Referential Transparency
+
+                    ---
+                    The expression is called referentially transparent if the expression can be substituted with the result,
+                    that is being evaluated.
+
+                    ---
+                    Example:
+                    ```scala [1-11]
+                    def increment5(x: Int): Int = x + 1
+
+                    val one = increment5(1) // increment5(1) is a referentially transparent expression
+                    val two = 2             // 2 is a result of increment5(1)
+
+                    println(one == two) // true
+
+                    val three = increment5(1) + increment5(1)
+                    val four  = one + one
+
+                    println(three == four) // true
+                    ```
+                    ---
+                    Now let's see the example of __not__ referentially transparent expression
+
+                    ```scala []
+                    def increment6(x: Int): Int = {
+                      println(x)
+                      x + 1
+                    }
+
+                    // stdout: 1, 1; one = 2
+                    val one = increment6(1) + increment6(1)
+
+                    val res = increment6(1)
+                    // stdout: 1; one = 2
+                    val two = res + res
+                    ```
+                    ---
+
+                    - The overall effect of the two calls of `increment6` and result substitute with `res` are not the same.
+                    - First expression produces two writes to standard output
+                    - Second expression produces only one write to standard output
+
+                    ---
+
+                    - Why can absence of the side effects be beneficial?
+                    - Why can referentially transparent code be beneficial?
+                    - Why can pure functions be beneficial?
+
+                    ---
+
+                    - Easy to test
+                    - Easy to understand. No need to know the whole context (_local reasoning_)
+                    - Easy to refactor code
+
+
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## Total Functions
+
+                    ---
+                    - Functions that are defined on the whole domain (on all inputs) are called __total__.
+                    - In other words, for any input it will produce a result
+                    ---
+                    Is this function __total__?
+
+                    ```scala [1]
+                    def multiply(x: Int): Int = x * x
+                    ```
+                    ---
+
+                    Yes, it is
+
+                    ---
+                    Is this function __total__?
+
+                    ```scala [1]
+                    def divide(x: Int, y: Int): Int = x / y
+                    ```
+                    ---
+
+                    - No, it is __not__
+                    - It will produce an __ArithmeticException__ for 1 and 0
+
+                    ```scala [1]
+                    divide(1, 0) // throws an ArithmeticException
+                    ```
+
+                    ---
+                    - If function is not total, than it is __partial__
+                    - Remember, Scala has separate class of functions called `PartialFunction`, which are allowed to be defined
+                    on the subset of the domain
+                    - However, not all __partial__ functions are __`PartialFunctions`__ (:
+
+                    ---
+
+                    Why can total functions be beneficial?
+
+                    ---
+
+                    No unexpected exceptions in the programs
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    Traditional while loops deal with mutable state:
+
+                    ```scala [1-6]
+                    var x = 0
+
+                    while (x < 10) {
+                      println(x)
+                      x += 1
+                    }
+                    ```
+                    ---
+
+                    How in functional world can we implement traversal of collection?
+
+                    ---
+                    ## Recursion
+
+                    ---
+
+                    Recursion plays a big role in functional programming and helps with complex structures
+
+                    ---
+                    Let's rewrite the given example with the recursion:
+
+                    ```scala
+                    def loop(x: Int = 0): Unit =
+                      if (x < 10) {
+                        println(x)
+                        loop(x + 1)
+                      }
+
+                    loop()
+                    ```
+                    ---
+
+                    However, we are still executing on the JVM. What potential
+                    problems can we have with recursive functions?
+
+                    ---
+
+                    - `StackOverflowException`
+                    - Each recursive call will produce allocation of the new set of arguments on the stack
+                    - If recursion is deep enough, we can have an overflow of the stack
+
+                    ---
+
+                    - How can we solve such issue?
+
+                    ---
+                    ## Tail Recursion
+                    ---
+
+                    - _Tail Recursion_ is a special kind of recursion that has as its last expression either a recursive
+                    call, or a constant value
+                    - It can be optimized during compilation and rewritten to the while loop
+
+                    ---
+
+                    Is this a tail recursion?
+
+                    ```scala [1-2]
+                    def factorial(n: Int): Int =
+                      if (n < 1) 1 else n * factorial(n - 1)
+                    ```
+
+                    ---
+
+                    - No, it is __not__. Last expression consists of multiplication and a recursive call
+                    - How can we make this function tail recursive?
+
+                    ---
+                    ```scala [1-2]
+                    def factorial(n: Int, acc: Int = 1): Int =
+                      if (n < 1) acc else factorial(n - 1, acc * n)
+                    ```
+                    - We can add an internal state of the computation (__accumulator__) as a separate argument with
+                    default value, that is equal to initial value.
+                    - Explicitly change the state of the computation and a pass a new value in the recursive call
+                    - When ready, just return an __accumulator__
+
+                    ---
+
+                    - However, this function still can have `StackOverflowException`, because the compiler will not optimize it
+                    - We must explicitly tell the compiler to perform a tail recursive optimization through static
+                    annotation:
+
+                    ```scala
+                    import scala.annotation.tailrec
+
+                    @tailrec
+                    def factorial(n: Int, acc: Int = 1): Int =
+                      if (n < 1) acc else factorial(n - 1, acc * n)
+                    ```
+                    ---
+
+                    The same recursive pattern can be applied to lists:
+                    ```scala [1-5]
+                    def sum(ints: List[Int], acc: Int = 0): Int =
+                      ints match {
+                        case Nil     => acc
+                        case x :: xs => sum(xs, acc + x)
+                      }
+                    ```
+
+                    ---
+                    Now, let's generalize this pattern:
+
+                    ```scala [1-8]
+                    def general[Acc, T](list: List[T], acc: Acc)
+                                       (f: (Acc, T) => Acc): Acc =
+                      list match {
+                        case Nil     => acc
+                        case x :: xs => general(xs, f(acc, x))(f)
+                      }
+
+                    val sum = general(List(1, 2, 3), 0)(_ + _) // sum = 6
+                    ```
+
+                    ---
+
+                    In fact, we came to
+
+                    ## Folds
+                    ---
+
+                    - This operation can be implemented for many collections
+                    - It generalizes traversal with accumulation of some state
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    Let's recall Java-like (or OOP) pattern for adding similar behaviour:
+
+                    ```scala
+                    trait Comparable[T] {
+                      def compareTo(other: T): Int
+                    }
+
+                    class User(val username: String,
+                               private val rank: Int) extends Comparable[User] {
+                      def compareTo(other: User): Int = this.rank - other.rank
+                    }
+
+                    (new User("Vasya", 1)).compareTo(new User("Petya", 2)) // -1
+                    ```
+
+                    ---
+                    - Now, suppose we want to add implementation of `Comparable` to `TwitterUser`
+
+                    ```scala [1-3]
+                    package com.twitter
+
+                    final class TwitterUser(val followers: Int)
+                    ```
+
+                    ---
+                    - Unfortunately, we cannot implement `Comparable` for `TwitterUser` because it is final
+                    - We also cannot implement `Comparable` for `Int` and `String` because they are standard
+
+                    ---
+
+                    How can we solve this issue?
+
+                    ---
+                    ## Typeclass
+
+                    ---
+                    _Typeclass_ is a design pattern that allows you to easily extend any closed type with new
+                    behaviour
+
+                    ---
+
+                    - Typeclasses are expressed through simple traits with one or more type parameters
+                    - Let's define typeclass analog of `Comparable`
+
+                    ```scala [1-3]
+                    trait Comparator[T] {
+                      def compare(x: T, y: T): Int
+                    }
+                    ```
+
+                    ---
+                    - Implementations of the trait will be called _instances_ of the typeclass
+                    - Implementations, usually, do not have explicit constructors
+
+                    ```scala [1-8]
+                    class ComparatorInt extends Comparator[Int] {
+                      def compare(x: Int, y: Int): Int = x - y
+                    }
+
+                    class ComparatorString extends Comparator[Int] {
+                      def compare(x: String, y: String): Int =
+                        x.length - y.length
+                    }
+                    ```
+
+                    ---
+                    - We can use typeclasses to define polymorphic functions like `max` function:
+
+                    ```scala
+                    def safeMax[T](list: List[T])
+                                  (comparator: Comparator[T]): Option[T] =
+                        list.foldLeft[Option[T]](None) {
+                          case (Some(v1), v2) =>
+                            val res = comparator.compare(v1, v2) < 0
+                            Some(if (res) v2 else v1)
+                          case (None, v)      => Some(v)
+                        }
+                    ```
+
+                    ---
+                    - In order to use it, we must specify how our `T` is compared
+
+                    ```scala
+                    val list = List(1, 2, 3)
+                    val res = safeMax(list)(new ComparatorInt) // res = Some(3)
+                    ```
+                    ---
+                    - Instances of Comparator are unique for defined types
+                    - We need to pass them to polymorphic functions
+                    - Why don't we use implicits?
+
+                    ```scala [1-10]
+                    trait Comparator[T] {
+                      def compare(x: T, y: T): Int
+                    }
+
+                    object Comparator {
+                      implicit val comparatorInt: Comparator[Int] =
+                        (x, y) => x - y
+                      implicit val comparatorString: Comparator[String] =
+                        (x, y) => x.length - y.length
+                    }
+                    ```
+
+                    ---
+
+                    ```scala [1-9]
+                    def safeMax[T](list: List[T])(implicit
+                      comparator: Comparator[T]
+                    ): Option[T] =
+                      list.foldLeft[Option[T]](None) {
+                        case (Some(v1), v2) =>
+                          val res = comparator.compare(v1, v2) < 0
+                          Some(if (res) v2 else v1)
+                        case (None, v)      => Some(v)
+                      }
+                    ```
+
+                    ---
+                    - Here, the actual behaviour of the `safeMax` function is defined by the provided type `T`
+                    - Such polymorphism is called __ad-hoc__
+
+                    ---
+
+                    - There are several common adjustments to the typeclass pattern
+                    - First, usage of apply summon function
+
+                    ```scala [1-7]
+                    object Comparator {
+                      // works identically to `implicitly`
+                      def apply[T](implicit
+                        comparator: Comparator[T]
+                      ): Comparator[T] = comparator
+                      //...
+                    }
+                    ```
+
+                    ---
+                    - Apply summon function can be paired with Context Bounds
+
+                    ```scala [1-10]
+                    def safeMax[T: Comparator](list: List[T]) Option[T] =
+                      list.foldLeft[Option[T]](None) {
+                        case (Some(v1), v2) =>
+                          val res = Comparator[T].compare(v1, v2) < 0
+                          Some(if (res) v2 else v1)
+                        case (None, v)      => Some(v)
+                      }
+                    ```
+                    ---
+
+                    - And Context Bounds can be paired with syntax extensions
+
+                    ```scala [1-7]
+                    implicit final class ComparatorOps[T](private val t: T)
+                      extends AnyVal {
+
+                      def compareTo(other: T)(implicit
+                       comparator: Comparator[T]
+                      ): Int = comparator.compare(t, other)
+                    }
+                    ```
+                    ---
+                    - No explicit call to instance of comparator
+
+                    ```scala [1-10]
+                    def safeMax[T: Comparator](list: List[T]) Option[T] =
+                      list.foldLeft[Option[T]](None) {
+                        case (Some(v1), v2) =>
+                          val res = v1 compareTo v2 < 0
+                          Some(if (res) v2 else v1)
+                        case (None, v)      => Some(v)
+                      }
+                    ```
+                    ---
+
+                    - There are several usual ways to define the typeclass instances:
+                    - In the companion object of the typeclass itself (useful for default instances)
+                    - In the companion object of the type for which we define the instance
+
+                    ---
+
+                    ```scala [1-13]
+                    trait Comparator[T] {
+                      def compare(a: Int, b: Int): Int
+                    }
+                    object Comparator {
+                      implicit val comparatorInt: Comparator[Int] =
+                        (a, b) => a - b
+                    }
+
+                    case class User(rank: Int, username: String)
+                    object User {
+                      implicit val comparator: Comparator[User] =
+                        (a, b) => a.rank - b.rank
+                    }
+                    ```
+
+                    ---
+
+                    - Both instances of `Comparator` for `Int` and `User` are in the global implicit scope
+                    - We can use them everywhere we want
+
+                    ```scala [1-8]
+                    val one = implicitly[Comparator[Int]]
+                      .compare(1, 2) // one = -1
+
+                    val two = implicitly[Comparator[User]]
+                      .compare(
+                        User(1, "Vasya"),
+                        User(2, "Petya")
+                      ) // two = -1
+                    ```
+
+                    ---
+                    - If the typeclass instance is not defined in the global implicit scope, then
+                    it is called __orphan__
+                    - Typical use case: define external typeclass instance for primitive types
+
+                    ```scala [1-4]
+                    object model {
+                      implicit val comparatorString: Comparator[String] =
+                        (a, b) => a.length - b.length
+                    }
+                    ```
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## Default Typeclasses
+                    ---
+                    ## Show
+
+                    Conversion to String
+                    ---
+                    ```scala [1-7]
+                    trait Show[-T] {
+                      def show(t: T): String
+                    }
+
+                    object Show {
+                      implicit val showString: Show[String] = t => t
+                      implicit val showInt: Show[Int] = _.toString
+                    }
+                    ```
+                    ---
+                    Syntax
+
+                    ```scala [1-8]
+                    implicit final class ShowOps[T](private val t: T)
+                      extends AnyVal {
+
+                      def show(implicit show: Show[T]): String =
+                        show.show(t)
+                    }
+
+                    val raw = 1.show
+                    ```
+                    ---
+                    ## Eq
+
+                    `equals` as typeclass
+                    ---
+                    ```scala [1-7]
+                    trait Eq[T] {
+                      def eq(a: T, b: T): Boolean
+                    }
+
+                    object Eq {
+                      implicit val eqInt: Eq[Int] = (a, b) => a == b
+                    }
+                    ```
+                    ---
+                    Syntax
+
+                    ```scala [1-8]
+                    implicit final class EqOps[T](private val t: T)
+                      extends AnyVal {
+
+                      def ===(other: T)(implicit eq: Eq[T]): Boolean =
+                        eq.eq(t, other)
+                    }
+
+                    val res = 1 === 1 // res = true
+                    ```
+
+                    ---
+
+                    ## Semigroup
+
+                    Associative binary operation
+                    ---
+
+                    ```scala [1-11]
+                    trait Semigroup[T] {
+                      def combine(a: T, b: T): T
+                    }
+
+                    object Semigroup {
+                      implicit val semigroupInt: Semigroup[Int] =
+                        (a, b) => a + b
+
+                      implicit val semigroupString: Semigroup[String] =
+                        (a, b) => a + b
+                    }
+                    ```
+
+                    ---
+
+                    Syntax:
+
+                    ```scala [1-8]
+                    implicit final class SemigroupOps[T](private val t: T)
+                      extends AnyVal {
+
+                      def |+|(other: T)(implicit semigroup: Semigroup[T]): T =
+                        semigroup.combine(t, other)
+                    }
+
+                    val three = "one" |+| "two" // three = onetwo
+                    ```
+
+                    ---
+                    Associativity Law should hold:
+
+                    ```scala [1-2]
+                    def equal[T: Semigroup](a: T, b: T, c: T): Boolean =
+                      (a |+| b) |+| c == a |+| (b |+| c)
+                    ```
+                    ---
+                    ## Monoid
+
+                    Better Semigroup
+
+                    ```scala [1-12]
+                    trait Monoid[T] extends Semigroup[T] {
+                      def unit: T
+                      def combine(a: T, b: T): T
+                    }
+
+                    object Monoid {
+                      implicit val monoidInt: Monoid[Int] =
+                        new Monoid[Int] {
+                          val unit: Int = 0
+                          def combine(a: Int, b: Int): Int = a + b
+                        }
+                    }
+                    ```
+                    ---
+                    Syntax
+
+                    ```scala [1-4]
+                    def unit[T](implicit monoid: Monoid[T]): T =
+                        monoid.unit
+
+                    val res = unit[Int] |+| 2 // res = 2
+                    ```
+
+                    ---
+                    - Associativity Law (same as for `Semigroup`)
+                    - Identity Law (left & right)
+
+                    ```scala [1-5]
+                    def equalLeft[T: Monoid](a: T): Boolean =
+                      unit[T] |+| a == a
+
+                    def equalRight[T: Monoid](a: T): Boolean =
+                      a |+| unit[T] == a
+                    ```
+                </textarea>
+            </section>
+        </section>
+    </div>
+</div>
+
+
+</body>
+</html>
