@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    
+    <title>Lab 07 - Error Handling</title>
+  <script type="module" crossorigin src="/assets/vendor.ddd8df57.js"></script>
+  <script type="module" crossorigin src="/assets/main.467d0acf.js"></script>
+  <link rel="stylesheet" href="/assets/main.5ea68116.css">
+</head>
+
+<body>
+<div class="reveal">
+    <div class="slides">
+        <!--Intro-->
+        <section data-markdown>
+                <textarea data-template>
+                    ## Error Handling
+                    Lab 07
+                </textarea>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Error handling
+                    Murphy's law states: `"Anything that can go wrong will go wrong"`
+
+                    Scala embraces Murphy's law and provides a number of ways to deal with its consequences (i.e. handle errors).
+                    ---
+                    ### JVM Errors
+
+                    <img src="https://i.imgur.com/H5rwrxd.png" width="45%" height="45%" />
+
+                    `Error` indicates something fatal that should not even be tried to handle (JVM error)
+
+                    `Exception` indicates a condition that an application may want to handle (business error, network problem)
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Try-catch
+                    In Scala all exceptions are "unchecked"
+
+                    Since we have an interop with Java we can use simple `try-catch` block:
+                    ```scala
+                    try {
+                      1 / 0
+                    } catch {
+                      case NonFatal(t) => println(t.getMessage)
+                    } finally {
+                      println("Will run no matter what")
+                    }
+                    ```
+                    ---
+                    However, Scala being functional language prefers to handle errors other ways, trying to package errors as values and types
+
+                    Is this method safe to call? What can go wrong with it?
+                    ```scala
+                    def parseInt(string: String): Int = Integer.parseInt(string)
+                    ```
+
+                    When do you think throwing exceptions is a bad idea? When it is acceptable?
+                    ---
+                    Main problem with `if (...) throw new Exception` is that it makes your code nondeterministic -
+                    you cannot know that a function throws exception from its signature. Therefore, you cannot know
+                    that you need to handle it.
+                    ---
+                    Standard concurrency structures like `Future` saves you from this exception hell by wrapping `Future`
+                    body in `try catch` block inside itself.
+                    But there is no guarantee that modern structures like `IO` will do the same. That is why in FP and Scala
+                    you should always try to use rich type system to express errors as values or
+                    use special error channels in some advanced structures like `IO`
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Option
+                    To package error as value we can start from using `Option`.
+                    `Option` is the simplest possible mechanism for handling errors in Scala.
+
+                    Use `Option` when only one thing can go wrong or there is no interest in a particular reason for a failure
+
+                    ```scala
+                    def parseIntOption(string: String): Option[Int] = ???
+                    ```
+
+                    The downside of `Option` is that it does not encode any information about what exactly went wrong. It only states the mere fact that it did.
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### EITHER & ADTs
+                    `Either` is a more powerful alternative to `Option`. It not only encodes the fact that something went wrong,
+                    but also provides means to carry a particular reason that has caused the issue.
+
+                    `Either` represents one of values: `Left` or `Right`
+
+                    There is a convention: `Left` is used as an error channel, `Right` - success
+                    ---
+                    ```scala
+                    def parseIntEither(string: String): Either[String, Int] =
+                      if (isNumber(string))
+                        Right(Integer.parseInt(string))
+                      else
+                        Left(s"$string is not an integer")
+
+                    def isNumber(str: String): Boolean = ???
+                    ```
+                    ---
+                    As an alternative to `String`, a proper ADT can be introduced to formalize all error cases. As was discussed
+                    on Lecture 2, this provides a number of benefits, including an exhaustiveness check
+                    at compile time, so one can be sure all error cases are handled.
+
+                    ```scala
+                    sealed trait TransferError
+                    object TransferError {
+                        /** Returned when amount to credit is negative. */
+                        final case object NegativeAmount extends TransferError
+                        /** Returned when amount to credit is zero. */
+                        final case object ZeroAmount extends TransferError
+                        /** Returned when amount to credit is equal or greater than 1 000 000. */
+                        final case object AmountIsTooLarge extends TransferError
+                        /** Returned when amount to credit is within the valid range, but has more than 2 decimal places. */
+                        final case object TooManyDecimals extends TransferError
+                    }
+
+                    def credit(amount: BigDecimal): Either[TransferError, Unit] = ???
+                    ```
+                    ---
+                    Either is right-associative on its value transformation calls (map, flatMap, ):
+                    ```scala
+                    val success = Right("Kek")
+                    success.map(_ => "Net, eto Shrek") // Right(Net, eto Shrek)
+                    val error = Left("smth broke")
+                    error.map(_ => "Obmanul, vse rabotaet") // Left(smth broke)
+                    ```
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Try
+                    The `Try` type represents a computation that may either result in an exception, or return a successfully computed value.
+                    It's similar to, but semantically different from the `Either` type.
+                    ```scala
+                    sealed abstract class Try[+T] {
+                      def isFailure: Boolean
+                      def isSuccess: Boolean
+                      def map[U](f: T => U): Try[U]
+                      def flatMap[U](f: T => Try[U]): Try[U]
+                      ???
+                    }
+                    class Success[+T](value: T) extends Try[T] {
+                      val isFailure: Boolean = false
+                      val isSuccess: Boolean = true
+                      def map[U](f: T => U): Try[U] = f(value)
+                      ???
+                    }
+                    class Failure[+T](ex: Throwable) extends Try[T] {
+                      val isFailure: Boolean = true
+                      val isSuccess: Boolean = false
+                      def map[U](f: T => U): Try[U] = this.asInstanceOf[Try[U]]
+                      ???
+                    }
+                    ```
+                    ---
+                    `Try` has an important property: all `Try` combinators will catch exceptions and return failure.
+                    But it catches only `NonFatal` exceptions.
+                    Difference with `Either` is that `Try` provides more specific methods to deal with throwables.
+                    For example one can `recover` from exception using `Try` using partial function:
+                    ```scala
+                    val failedEx = Failure(new RuntimeException("Broke"))
+                    val failedTh = Failure(new Exception("Another thing has broken"))
+                    failedEx.recover(recoverFn) // Success(Recovered)
+                    failedTh.recover(recoverFn) // Failure(Exception("Another thing has broken"))
+
+                    def recoverFn[U]: PartialFunction[Throwable, U] = {
+                      case ex: RuntimeException => "Recovered"
+                    }
+                    ```
+                </textarea>
+            </section>
+        </section>
+
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    Okay, now we know how to handle errors.
+
+                    Imagine we have a web form validation ADTs:
+                    ```scala
+                    final case class Username(value: String) extends AnyVal
+                    final case class Age(value: Int) extends AnyVal
+                    final case class Student(username: Username, age: Age)
+
+                    sealed trait ValidationError
+                    object ValidationError {
+                      final case object UsernameLengthIsInvalid extends ValidationError {
+                        override def toString: String = "Username must be between 3 and 30 characters"
+                      }
+                      final case object UsernameHasSpecialCharacters extends ValidationError {
+                        override def toString: String = "Username cannot contain special characters"
+                      }
+                      final case object AgeIsOutOfBounds extends ValidationError {
+                        override def toString: String = "Student must be of age 18 to 75"
+                      }
+                    }
+                    ```
+                    ---
+                    We can define custom type alias for `Either` and validate user as follows:
+                    ```scala
+                    type ErrorsOr[A] = Either[ValidationError, A]
+
+                    def validateUsernameLength(name: String): ErrorsOr[String] =
+                      Either.cond(
+                        name.length >=3 && name.length <= 30,
+                        name,
+                        UsernameLengthIsInvalid
+                      )
+
+                    def validateUsernameChars(name: String): ErrorsOr[String] =
+                      Either.cond(
+                        name.matches("[a-zA-Z]"),
+                        name,
+                        UsernameHasSpecialCharacters
+                      )
+
+                    def validateAge(age: Int): ErrorsOr[Int] =
+                      Either.cond(
+                        age >= 18 && age <= 75,
+                        age,
+                        AgeIsOutOfBounds
+                      )
+
+                    val username = ???
+                    val age = ???
+                    for {
+                      _ <- validateUsernameLength(username)
+                      nameValidated <- validateUsernameChars(username)
+                      ageValidated <- validateAge(age)
+                    } yield Student(Username(nameValidated), Age(ageValidated)) // ErrorsOr[Student]
+                    ```
+                    But what problem and inconveniences we have now?
+
+                </textarea>
+            </section>
+        </section>
+
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Validated
+                    Since `Either` is right-associative and for-comprehension is fail-fast then whole validation will return only one error.
+
+                    So, scala community came up with a solution: define class that can accumulate errors of the same type in some collection in its left channel and return result in right
+                    ```scala
+                    sealed abstract class Validated[+E, +A] extends Product with Serializable {
+                      // Implementation
+                    }
+                    final case class Valid[+A](a: A) extends Validated[Nothing, A]
+                    final case class Invalid[+E](e: E) extends Validated[E, Nothing]
+                    ```
+                    ---
+                    So now we can use something like `Validated[List[ValidationError], A]` to accumulate errors in validated left channel.
+
+                    Truly speaking, no. `Validated` by itself does not know how to accumulate multiple errors in its left channel.
+
+                    What accumulator we can use?
+                    ---
+                    ### NonEmptyList and Semigroup
+                    Lets create a special accumulator that represents a list that is 100% not empty.
+                    ```scala
+                    final class NonEmptyList[+A](head: A, tail: List[A]) extends NonEmptyCollection[A, List, NonEmptyList] {
+                      def concatNel(other: NonEmptyList[A]]: NonEmptyList
+                    }
+                    ```
+                    From the lecture we remember that we have a special typeclass to combine values `Semigroup`.
+                    ```scala
+                    object NonEmptyList {
+                      implicit def semigroup[A]: Semigroup[NonEmptyList[A]] = new Semigroup[NonEmptyList[A]] {
+                        def combine(a: NonEmptyList[A], b: NonEmptyList[A]): NonEmptyList[A] =
+                          a.concatNel(b)
+                      }
+                    }
+                    ```
+                    ---
+                    And a helpful syntax for `Validated` with `NonEmptyList` for errors channel:
+                    ```scala
+                    type ValidatedNel[+E, +A] = Validated[NonEmptyList[E], A]
+
+                    implicit class ValidatedOps[T](val a: A) extends AnyVal {
+                      def validNel[E]: ValidatedNel[E, A] = Validated.Valid(a)
+                      def invalidNel[B]: ValidatedNel[A, B] = Validated.Invalid(NonEmptyList(e, Nil))
+                    }
+                    ```
+                    ---
+                    And lets define a special version of `map`, that will map on tuples
+                    and use `Semigroup` instance to accumulate errors in `Validated` left channel.
+                    ```scala
+                    def map3[E: Semigroup, A, B, C, D](a: Validated[E, A], b: Validated[E, B], c: Validated[E, C])(f: (A, B, C) => D): Validated[E, D] =
+                      (a, b, c) match {
+                        case (Valid(ax), Valid(bx), Valid(cx)) => Valid(f(ax, bx, cx))
+                        case (Invalid(ae), Invalid(be), Invalid(ce)) => Invalid(ae |+| be |+| ce)
+                        case (Invalid(ae), Invalid(be), _) => Invalid(ae |+| be)
+                        // and all other permutations
+                      }
+                    ```
+                    ---
+                   ```scala
+                    def validateUsernameLength(name: String): ErrorsOr[String] =
+                      if (name.length >=3 && name.length <= 30)
+                        name.validNel
+                      else
+                        UsernameLengthIsInvalid.invalidNel
+
+                    def validateUsernameChars(name: String): ErrorsOr[String] =
+                      if (name.matches("[a-zA-Z]"))
+                        name.validNel
+                      else
+                        UsernameHasSpecialCharacters.invalidNel
+
+                    def validateAge(age: Int): ErrorsOr[Int] =
+                      if (age >= 18 && age <= 75)
+                        age.validNel
+                      else
+                        AgeIsOutOfBounds.invalidNel
+
+                    val username = ???
+                    val age = ???
+                    (validateUsernameLength(userName), validateUsernameChars(username), validateAge(age)).map3 {
+                      case (_, name, age) => Student(Username(name), Age(age))
+                    } // If all validations pass, then we will get Valid(Student(...)), otherwise Invalid(...) with all errors accumulated
+                    ```
+                </textarea>
+            </section>
+        </section>
+    </div>
+</div>
+
+
+</body>
+
+</html>
