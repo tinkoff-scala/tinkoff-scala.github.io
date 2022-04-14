@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    
+    <title>Lecture 08 - Concurrency</title>
+  <script type="module" crossorigin src="/assets/vendor.ddd8df57.js"></script>
+  <script type="module" crossorigin src="/assets/main.467d0acf.js"></script>
+  <link rel="stylesheet" href="/assets/main.5ea68116.css">
+</head>
+<body>
+<div class="reveal">
+    <div class="slides">
+        <!--Intro-->
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## Concurrency
+                    Lecture 08
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    Several definitions connected to concurrency:
+
+                    - Multitasking
+                    - Multithreading
+                    - Concurrency
+                    - Parallelism
+
+                    ---
+                    _Multitasking_ is the ability to work on several tasks (progress) at the same time.
+
+                    ---
+
+                    In context of Operating Systems, ability to run several applications, programs, processes
+                    at the same time.
+
+                    ---
+
+                    In context of programs, ability of the program to work on several tasks at the same time.
+
+                    ---
+
+                    Multitasking != Multithreading
+
+                    ---
+
+                    For example, this is a multitasking program with two tasks that runs on single-core CPU
+
+                    | Core 1          |
+                    |-----------------|
+                    | task 1 start    |
+                    | task 2 start    |
+                    | task 1 progress |
+                    | task 2 progress |
+                    | task 1 finish   |
+                    | task 2 finish   |
+
+                    ---
+
+                    This is also possible, now program is running on 2-core CPU. It is still a multitasking program
+
+                    | Core 1          | Core 2          |
+                    |-----------------|-----------------|
+                    | task 1 start    | task 2 start    |
+                    | task 1 progress | task 2 progress |
+                    | task 1 finish   | task 2 finish   |
+
+                    ---
+
+                    Two types of multitasking: __preemptive__ and __cooperative__
+
+                    ---
+
+                    In __preemptive__ multitasking, each task can be stopped or preempted
+
+                    ---
+
+                    | Core 1          |
+                    |-----------------|
+                    | task 1 start and is stopped      |
+                    | task 2 start and is stopped      |
+                    | task 1 progresses and is stopped |
+                    | task 2 progresses and is stopped |
+                    | task 1 finishes   |
+                    | task 2 finishes   |
+
+                    ---
+
+                    In __cooperative__ multitasking, each task can voluntarily yield control
+
+                    ---
+
+                    | Core 1          |
+                    |-----------------|
+                    | task 1 starts and yields      |
+                    | task 2 starts and yields      |
+                    | task 1 progresses and yields  |
+                    | task 2 progresses and yields  |
+                    | task 1 finishes and yields  |
+                    | task 2 finishes and yields  |
+
+                    ---
+
+                    Multithreading is the ability of the program to be executed on multiple threads
+
+                    ---
+                    Example 1
+
+                    | Core 1          | Core 2          |
+                    |-----------------|-----------------|
+                    | task 1 start    | task 2 start    |
+                    | task 1 progress | task 2 progress |
+                    | task 1 finish   | task 2 finish   |
+
+                    ---
+
+                    Example 2
+
+                    | Core 1          | Core 2          |
+                    |-----------------|-----------------|
+                    | task 1 start    | -               |
+                    | task 2 start    | -               |
+                    | -               | task 1 progress |
+                    | -               | task 2 progress |
+                    | task 2 finish   | -               |
+                    | task 1 finish   | -               |
+
+                    ---
+
+                    Concurrency is when the program executes several tasks in overlapping time periods
+
+                    ---
+
+                    Example 1
+
+                    | Core 1          | Core 2          |
+                    |-----------------|-----------------|
+                    | task 1 start    | -               |
+                    | task 2 start    | task 2 progress |
+                    | task 2 finish   | task 1 progress |
+                    | task 1 finish   | -               |
+
+                    ---
+
+                    Example 2
+
+                    | Core 1          |
+                    |-----------------|
+                    | task 1 start    |
+                    | task 2 start    |
+                    | task 1 progress |
+                    | task 2 progress |
+                    | task 1 finish   |
+                    | task 2 finish   |
+
+                    ---
+
+                    Concurrent execution does not necessarily involve execution using multiple threads.
+
+                    Most obvious example, single-threaded Javascript.
+
+                    ---
+
+                    Parallelism is when the program executes independent tasks in parallel at the same time
+
+                    ---
+
+                    Example
+
+                    | Core 1          | Core 2          |
+                    |-----------------|-----------------|
+                    | task 1 start    | task 2 start    |
+                    | task 1 progress | task 2 progress |
+                    | task 1 finish   | task 2 finish   |
+
+
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## Sync / Async
+
+                    ---
+
+                    __Synchronous__ computation can result in success or error
+
+                    ---
+
+                    ```scala [1-15]
+                    trait SyncDB {
+                      def getUser(id: String): User
+                    }
+                    ```
+
+                    `getUser` always will return a User or throw an exception
+
+                    ---
+
+                    __Asynchronous__ computation can result in success, error or in no result at all
+
+                    ---
+
+                    ```scala [1-15]
+                    trait AsyncDB {
+                      def getUserAsync(
+                        id: String,
+                        callback: Callback[User]
+                      ): Unit
+                    }
+
+                    trait Callback[A] {
+                      def complete(res: Either[Throwable, A]): Unit
+                    }
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    val callback: Callback[User] = {
+                      case Right(user) => println(s"Received a user: $user")
+                      case Left(th)    => println(s"Received an error: $th")
+                    }
+
+                    val db: AsyncDB = ???
+                    println("Getting a user")
+                    db.getUserAsync("petya", callback)
+                    println("Sent a request")
+                    ```
+
+                    ---
+
+                    What are the possible executions scenarios?
+
+                    ---
+
+                    Scenario #1 - Received a user somewhere in the future
+
+                    ```scala [1-15]
+                    // Getting a user
+                    // Sent a request
+                    // Received a user: Petya
+                    ```
+
+                    ---
+
+                    Scenario #2 - Received an error somewhere in the future
+
+                    ```scala [1-15]
+                    // Getting a user
+                    // Sent a request
+                    // Received an error: NoSuchUserException
+                    ```
+
+                    ---
+
+                    Scenario #3 - Received a user immediately
+
+                    ```scala [1-15]
+                    // Getting a user
+                    // Received a user: Petya
+                    // Sent a request
+                    ```
+
+
+                    ---
+
+                    Scenario #4 - Received nothing at all
+
+                    ```scala [1-15]
+                    // Getting a user
+                    // Sent a request
+                    ```
+
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### JVM Thread Model
+
+                    ---
+
+                    Operating System has threads, lightweight processes, that allow to have a better overall
+                    responsiveness of the system
+
+                    ---
+
+                    Java has the special class that enables the creation of the system level threads -
+                    `java.lang.Thread`
+
+                    Each object or instance of class `java.lang.Thread` is corresponding to a native thread
+
+                    Each thread runs a `Runnable` task
+
+                    ---
+
+                    ```scala [1-15]
+                    import java.lang.Thread
+
+                    val t1 = new Thread(() => println(s"Hello 1!"))
+                    val t2 = new Thread(() => println(s"Hello 2!"))
+
+                    t1.start()
+                    t2.start()
+                    ```
+
+                    ---
+
+                    We know, that a native thread is an expensive resource, that we cannot easily create on each server
+                    request, for example.
+
+                    We need somehow to limit the number of threads in the program.
+
+                    Thus, let's create a pool of threads and distribute the work among them
+
+                    ---
+
+                    ![](img/thread-pool.png)
+
+                    ---
+
+                    Java has Executor and ExecutorService to abstract the Thread Pool
+
+                    ```scala [1-15]
+                    trait Executor {
+                      def execute(task: Runnable): Unit
+                    }
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    val executor: Executor = ???
+
+                    executor.execute(() => println("Hello 1!"))
+                    executor.execute(() => println("Hello 2!"))
+                    ```
+
+                    ---
+
+                    ### Blocking
+
+                    Threads can be blocked until a certain event unblocks them.
+
+                    Example: thread can be blocked until a response from a database is received.
+
+                    While blocked, thread is not doing any useful work. It just simply allocates the resource
+
+                    ---
+
+                    Blocking is bad!
+
+                    ---
+
+                    ### Non-Blocking
+
+                    Instead of blocking, we can continue working until the response arrives.
+
+                    Java has certain APIs that allows to be fully non-blocking
+
+                    However, some legacy old APIs is still blocking. For example, JDBC.
+
+                    So, be careful when interrupting with native Java libraries.
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## Execution Context and Futures
+
+                    ---
+
+                    Asynchronous computations, working with callbacks and managing thread pools
+                    can become tedious and error-prone.
+
+                    Scala adopts a more convenient approach - _Futures_.
+
+                    ---
+
+                    `Future` in Scala - is a value that will become available somewhere in the _future_.
+
+                    It cannot be obtained right at the moment without blocking the calling thread
+
+                    ---
+
+                    ```scala [1-15]
+                    import scala.concurrent.ExecutionContext.Implicits.global
+                    val somewhereOne: Future[Int] = Future {
+                      println("Hello 1!")
+                      1
+                    }
+                    val somewhereTwo: Future[Int] = Future {
+                      println("Hello 2!")
+                      2
+                    }
+                    println("Hi!")
+                    // Hi
+                    // Hello 1!
+                    // Hello 2!
+                    ```
+
+                    ---
+
+                    Futures need implicit `ExecutionContext` in order to be constructed and executed.
+
+                    `ExecutionContext` inherits Java interfaces `Executor` and `ExecutorService` and is
+                    basically a thread pool.
+
+                    `ExecutionContext.Implicits.global` is a global implicit ExecutionContext
+
+                    Usually, each framework defines its own ExecutionContext
+
+                    ---
+
+                    ```scala [1-15]
+                    object Future {
+                      def apply[A](a: => A)(
+                        implicit ec: ExecutionContext
+                      ): Future[A] = ???
+                      //... other methods
+                    }
+                    ```
+
+                    `apply` accepts an expression through by-name argument that later under the hood will
+                    be converted to `Runnable` and executed on a thread pool.
+
+                    ---
+
+                    This means - Future is eager. When it is constructed, it is already executing somewhere
+
+                    You can use alternative factory method `successful` to create an already completed `Future`
+                    with some provided value.
+
+                    ```scala [1-15]
+                    object Future {
+                      def successful[A](a: A): Future[A] = ???
+
+                      //... other methods
+                    }
+                    ```
+                    ---
+
+                    What are possible execution scenarios?
+
+                    ```scala [1-15]
+                    import scala.concurrent.ExecutionContext.Implicits.global
+                    val somewhereOne: Future[Int] = Future {
+                      println("Hello 1!")
+                      1
+                    }
+                    val somewhereTwo: Future[Int] = Future {
+                      println("Hello 2!")
+                      2
+                    }
+                    println("Hi!")
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    // Hi!
+                    // Hello 1!
+                    // Hello 2!
+                    ```
+
+                    ```scala [1-15]
+                    // Hi!
+                    // Hello 2!
+                    // Hello 1!
+                    ```
+
+                    ```scala [1-15]
+                    // Hello 2!
+                    // Hello 1!
+                    // Hi!
+                    ```
+                    ---
+
+                    Okay, what are possible execution scenarios here?
+
+                    ```scala [1-15]
+                    import scala.concurrent.ExecutionContext.Implicits.global
+                    val somewhereOne: Future[Int] = Future.successful {
+                      println("Hello 1!")
+                      1
+                    }
+                    val somewhereTwo: Future[Int] = Future.successful {
+                      println("Hello 2!")
+                      2
+                    }
+                    println("Hi!")
+                    ```
+
+                    ---
+
+                    Only one
+
+                    ```scala [1-15]
+                    // Hello 1!
+                    // Hello 2!
+                    // Hi!
+                    ```
+
+                     In fact, there are no asynchronous computations at all
+
+                    ---
+
+                    `Future`, also, can be completed with `Throwable`
+
+                    ```scala [1-15]
+                    object Future {
+                      def failed[A](th: Throwable): Future[A] = ???
+
+                      //... other methods
+                    }
+                    ```
+
+                    ---
+
+                    `Future` has a `map` combinator
+
+                    ```scala [1-15]
+                    trait Future[+A] {
+                      def map[B](f: A => B)(
+                        implicit ec: ExecutionContext
+                      ): Future[B]
+                      // other methods
+                    }
+                    ```
+
+                    Notice the implicit `ExecutionContext`. Why do think it is there?
+
+                    ---
+
+                    `map` will produce a new Future that will encapsulate passed `f` into `Runnable`.
+
+                    It will also _chain_ the execution of current future with the produced one.
+
+                    `f` will be evaluated only when the current `Future` will be completed with the result.
+
+                    ---
+
+                    `Future` has a `flatMap` combinator
+
+                    ```scala [1-15]
+                    trait Future[+A] {
+                      def flatMap[B](f: A => Future[B])(
+                        implicit ec: ExecutionContext
+                      ): Future[B]
+                      // other methods
+                    }
+                    ```
+
+                    The rule here are the same as in `map` combinator
+
+                    ---
+
+                    How this can affect the performance of your application?
+
+                    ---
+
+                    Too small tasks for single `Runnable`. Much more overhead will be created by the
+                    context-switches between the threads.
+
+                    ---
+
+                    `Future` memoize the values once they are completed
+
+                    ```scala [1-15]
+                    val async: Future[Int] = ???
+                    def executeAfterOne(in: Int): Future[Int] = ???
+                    def executeAfterTwo(in: Int): Future[Int] = ???
+
+                    val chainOne: Future[Int] =
+                      async.flatMap(executeAfterOne)
+                    val chainTwo: Future[Int] =
+                      async.flatMap(executeAfterTwo)
+                    ```
+
+                    `asyncOne` will be executed once. Later, it will immediately return the completed result
+
+
+                    ---
+
+                    Futures help us abstract from asynchronous computations and
+                    allow us to simply compose these computations.
+
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## cats.effect.IO
+
+                    ![](img/cats-effect.png)
+
+                    ---
+
+                    `cats.effect` is a pure functional asynchronous runtime for Scala
+
+                    Project is developed by Typelevel organization
+
+                    ---
+
+                    It provides
+
+                    - Typeclass hierarchy for different aspects of asynchronous side-effectful computations
+                    - Implementation of IO
+                    - Concurrency primitives
+                    - Runtime
+
+                    ---
+
+                    Let's recall simple synchronous side-effectful computations
+
+
+                    ```scala [1-15]
+                    import cats.effect.IO
+
+                    val program = for {
+                      _ <- IO(println("Hello 1!"))
+                      _ <- IO(println("Hello 2!"))
+                      _ <- IO(println("Hello 3!"))
+                    } yield ()
+                    ```
+
+                    ---
+
+                    `apply` suspends the computations until the end of the world
+
+                    ```
+                    object IO {
+                      def apply[A](suspended: => A): IO[A] = ???
+                    }
+                    ```
+
+                    ---
+
+                    We can view this simple program as a structure, or graph that consists of 3 elements:
+
+                    - Instruction - print `Hello 1!`
+                    - Instruction - print `Hello 2!`
+                    - Instruction - print `Hello 3!`
+
+                    ---
+
+                    Theoretically, we can easily stop, or _cancel_ the computation between any 2 elements. For example,
+                    this can be possible
+
+                    - Instruction - print `Hello 1!`
+                    - Instruction - print `Hello 2!`
+                    - Computation is canceled
+                    - Instruction - print `Hello 3!` (will never be executed)
+
+                    ---
+
+                    Moreover, we can have several such graphs in our application that could potentially
+                    run concurrently.
+
+                    Let's call each such computation a _Fiber_.
+
+                    ---
+
+                    Fibers can be viewed as a light-weighted threads (green threads, coroutines).
+
+                    It is a sequence of actions (instructions) that have a certain order between them in which they
+                    must be evaluated. Remember, that IO values are _lazy_.
+
+                    They are light-weighted because they are represented as a simple data-structure (just references
+                    to suspended functions).
+
+                    Thus, we can spawn a lot of them in our application.
+
+                    ---
+
+                    Our computation can be viewed as a graph:
+
+                    <img src="img/fibers.png" alt="drawing" height="400"/>
+
+                    ---
+
+                    Each circle will be our instruction
+
+                    Each "branch" will be our fiber
+
+                    ---
+
+                    ```scala [1-15]
+                    trait Fiber[E, A] {
+                      def join: IO[Outcome[E, A]]
+                      def cancel: IO[Unit]
+                    }
+
+                    sealed trait Outcome[E, A]
+                    object Outcome {
+                      case class Canceled[E, A]()      extends Outcome[E, A]
+                      case class Errored[E, A](e: E)   extends Outcome[E, A]
+                      case class Succeeded[E, A](a: A) extends Outcome[E, A]
+                    }
+                    ```
+                    ---
+
+                    Fiber has two actions:
+
+                    - `join` - returns an IO that will be complemented once fiber is executed
+                    - `cancel` - that cancels computation in the fiber
+
+                    ---
+
+                    Outcome signalizes the parent fiber with the result of the computation in child fiber:
+
+                    - `Outcome.Succeeded` - fiber finished with value normally
+                    - `Outcome.Errored` - fiber finished with an error
+                    - `Outcome.Canceled` - fiber was canceled, execution stopped somewhere
+
+                    ---
+
+                    ```scala [1-15]
+                    for {
+                      fibA <- IO(println("One!")).start
+                      fibB <- IO(println("Two!")).start
+                      _ <- fibA.join
+                      _ <- fibB.join
+                    } yield ()
+                    ```
+
+                    ---
+
+                    What happens:
+
+                    1. We start our computation in _main_ fiber
+                    2. We fork fiber `fibA` from main, that will print `One!`
+                    3. We fork fiber `fibB` from main, that will print `Two!`
+                    4. We await for completion of `fibA` in _main_ fiber
+                    5. We await for completion of `fibB` in _main_ fiber
+
+                    ---
+
+                    `fibA` and `fibB` are logically independent in terms of execution.
+
+                    It does not necessarily mean that they will be executed on different threads.
+
+                    - They _can be_ executed on different threads in parallel
+                    - They _can be_ executed on different threads in concurrently
+                    - They _can be_ executed on one thread sequentially
+
+                    ---
+
+                    Actual execution is non-deterministic and is defined by the runtime configuration
+
+                    ---
+
+                    `join` operation allows us to wait in parent fiber when the child fiber will finish
+
+                    However, this does not involve any blocking of threads underneath in the runtime
+
+                    `join` is just _semantically_ blocking
+
+                    ---
+
+                    Runtime will handle this something like this:
+
+                    1. `join` on main thread will simply stop execution of parent fiber
+                    2. When `child` fiber finishes, it notifies the parent fiber to start executing again
+
+                    ---
+
+                    `cancel` operation is a little tricky. It stops the execution of fiber completely, and
+                    fiber cannot recover from it.
+
+                    ---
+
+                    Example,
+
+                    ```scala
+                    def loop: IO[Unit] =
+                      IO(println("Vibing")).flatMap(_ => loop)
+
+                    for {
+                      fibA <- loop.start
+                      _ <- IO(println("Started Vibing"))
+                      _ <- fibA.cancel
+                    } yield ()
+                    ```
+
+                    ---
+
+                    `loop` is stack-safe, so do not worry about recursion
+
+                    `loop` prints lines in an infinite while-loop
+
+                    `loop` will be interrupted on `cancel`
+
+                    `cancel` will await the current execution of `println` in the loop
+
+                    `cancel` will return the value only after the fiber is actually stopped
+
+                    ---
+
+                    IO expressions can be delayed in time:
+
+                    ```scala [1-15]
+                    import scala.concurrent.duration._
+
+                    def periodicLoop: IO[Unit] =
+                      for {
+                        _ <- IO(println("Vibing"))
+                        _ <- IO.sleep(1.second)
+                        _ <- periodicLoop
+                      } yield ()
+
+                    for {
+                      fibA <- periodicLoop.start
+                      _ <- IO(println("Started Vibing"))
+                      _ <- fibA.cancel
+                    } yield ()
+                    ```
+
+                    ---
+
+                    Runtime will insert await for 1 second in each iteration of the while loop
+                    without thread blocking.
+
+                    You can still cancel such fibers.
+
+                    ---
+
+                    Actual runtime of `cats-effect` consists of several thread pools:
+
+                    - __Compute Pool__ for non-blocking heavy CPU tasks
+                    - __Blocking Pool__ for thread-blocking operations
+                    - __Scheduler__ for delayed in time fibers
+
+                    ---
+
+                    ### Questions?
+
+                </textarea>
+            </section>
+        </section>
+    </div>
+</div>
+
+
+</body>
+</html>
