@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    
+    <title>Lab 08 - Concurrency instruments (Cats Effect)</title>
+  <script type="module" crossorigin src="/assets/vendor.ddd8df57.js"></script>
+  <script type="module" crossorigin src="/assets/main.467d0acf.js"></script>
+  <link rel="stylesheet" href="/assets/main.5ea68116.css">
+</head>
+
+<body>
+<div class="reveal">
+    <div class="slides">
+        <!--Intro-->
+        <section data-markdown>
+                <textarea data-template>
+                    ## Concurrency instruments (Cats Effect)
+                    Lab 08
+                </textarea>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Ref
+                    An asynchronous, concurrent mutable reference.
+                    Provides safe concurrent access and modification of its content, but no functionality for synchronisation
+
+                    ```scala
+                    abstract class Ref[F[_], A] {
+                      def get: F[A]
+                      def set(a: A): F[Unit]
+                      def modify[B](f: A => (A, B)): F[B]
+                      // ... and more
+                    }
+                    ```
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Deferred
+                    Imagine that we want to represent a value,
+                    that can be not available yet with ability to synchronise multiple objects accessing it.
+                    ```scala
+                    abstract class Deferred[F[_], A] {
+                      def get: F[A]
+                      def complete(a: A): F[Boolean]
+                    }
+                    ```
+                    ---
+                    Expected behavior of get:
+
+                    * get on an empty Deferred will block until the Deferred is completed
+                    * get on a completed Deferred will always immediately return its content
+                    * get is cancelable and on cancelation it will unsubscribe the registered listener, an operation that's possible for as long as the Deferred value isn't complete
+
+                    ---
+                    Expected behavior of complete:
+
+                    * complete(a) on an empty Deferred will set it to a, notify any and all readers currently blocked on a call to get and return true
+                    * complete(a) on a Deferred that has already been completed will not modify its content, and will result false
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Semaphore
+                    Semaphore is the same concurrency primitive that you know from OS courses:
+                    ```scala
+                    abstract class Semaphore[F[_]] {
+                      def available: F[Long]
+                      def acquire: F[Unit]
+                      def release: F[Unit]
+                      // ... and more
+                    }
+                    ```
+                    ---
+                    * It has a non-negative number of permits available.
+                    * Acquiring a permit decrements the current number of permits and releasing a permit increases the current number of permits.
+                    * An acquire that occurs when there are no permits available results in semantic blocking until a permit becomes available.
+                    * Semaphore acquiring can be cancelled even if it is already blocked.
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Count Down Latch
+                    Blocks any fibers that waits on it. Initialized with positive integer value `n`
+                    and waiting fibers are semantically blocked until all `n` latches are released.
+                    Can be used only once, further `await` will return `IO.unit`
+                    ```scala
+                    trait CountDownLatch[F[_]] {
+                      def release: F[Unit]
+
+                      def await: F[Unit]
+                    }
+                    ```
+                    `await` can be cancelled
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Cyclic Barrier
+                    A re-usable synchronization primitive that allows a set of fibers to wait until they've all reached the same point.
+                    ```scala
+                    trait CyclicBarrier[F[_]] {
+                      def await: F[Unit]
+                    }
+                    ```
+                    Initialized with positive value `n` and waits until `n` fibers will be awaiting for release.
+                    `await`:7.0.is cancellable. Barrier is reusable.
+                </textarea>
+            </section>
+        </section>
+    </div>
+</div>
+
+
+</body>
+
+</html>

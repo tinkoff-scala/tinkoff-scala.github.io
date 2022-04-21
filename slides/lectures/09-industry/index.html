@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    
+    <title>Lecture 09 - Industry</title>
+  <script type="module" crossorigin src="/assets/vendor.ddd8df57.js"></script>
+  <script type="module" crossorigin src="/assets/main.467d0acf.js"></script>
+  <link rel="stylesheet" href="/assets/main.5ea68116.css">
+</head>
+<body>
+<div class="reveal">
+    <div class="slides">
+        <!--Intro-->
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## Industry
+                    Lecture 09
+
+                    ---
+
+                    ### Content
+
+                    `cats`
+
+                    `http4s`
+
+                    `circe`
+
+                    `fs2`
+
+                    `doobie`
+
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                ## Higher Kinded Type Parameters
+
+                ---
+                Let's recall basic type parameters:
+
+                ```scala [1-3]
+                // type parameter `B` - accumulator
+                // type parameter `T` - element
+                def foldLeft[B, T](acc: B)(f: (B, T) => B): B = ???
+
+                ```
+
+                ---
+
+                This type parameters represent an abstract type
+
+                What if type parameter represented a function?
+
+                ---
+
+                Scala allows such parameters:
+
+                ```scala [1-5]
+                // type parameter `F[_]` - abstract collection
+                // type parameter `B` - accumulator
+                // type parameter `T` - element
+                def foldLeftCollection[F[_], B, T](collection: F[T])
+                (acc: B)(f: (B, T) => B): B = ???
+                ```
+
+                ---
+
+                - `F[_]` is a type constructor
+                - By applying `F[_]` to types `A`, `B`, `C` we will get three new types:
+                `F[A]`, `F[B]`, `F[C]`
+
+                ---
+
+                Everything that is shaped like `F[_]` can be used as a substitution:
+
+                ```scala
+                trait Foo[F[_]] {
+                def bar: F[Int]
+                }
+
+                val fooOption: Foo[Option] = _ => Some(1)
+                val fooList: Foo[List] = _ => List(1)
+                val fooIO: Foo[IO] = _ => IO(1)
+                ```
+
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## `cats`
+
+                    Core Library for Functional Programming
+
+                    [Documentation](https://typelevel.org/cats/)
+
+                    ---
+
+                    - `cats` for _category_
+                    - Developed and maintained by Typelevel
+                    - Copy of Haskell Standard Library
+
+                    ---
+
+                    ## Typeclasses
+
+                    - Cats contains a big hierarchy of typeclasses.
+                    - All mentioned typeclasses in the course can be found in `cats`:
+                        - Semigroup, Monoid, Order, Eq, Show and etc.
+
+                    ---
+
+                    ## Syntax Extensions
+
+                    - For all typeclasses in `cats` there are special syntax extensions
+                    - For example, `Semigroup` syntax
+
+                    ```scala [1-5]
+                    import cats.syntax.semigroup._
+                    // imports implicit classes with `|+|` method
+                    // Semigroup instance for String in global implicit scope
+
+                    val res = "Hello, " |+| "world!"
+                    ```
+
+                    ---
+
+                    ```scala [1-5]
+                    import cats.syntax.either._
+                    // imports implicit classes that extend Either
+
+                    val from: Either[String, Int] = ???
+                    val res: Either[String, Int] = from.map(_ + "test").leftMap(_ + 1)
+                    ```
+
+                    ---
+
+                    ## Data Types
+
+                    Apart from typeclasses, `cats` introduce special functional data types
+
+                    ---
+
+                    First of all - NonEmpty structures:
+
+                    ```scala [1-4]
+                    import cats.data.{NonEmptyList, NonEmptyVector}
+
+                    val l: NonEmptyList[String] = NonEmptyList.of("one")
+                    val v: NonEmptyVector[String] = NonEmptyVector.of("one")
+                    ```
+
+                    ---
+
+                    Second, already familiar special type to accumulate errors - `Validated`
+
+                    ```scala [1-8]
+                    import cats.data.Validated
+                    import cats.syntax.validated._
+
+                    val a: Validated[NonEmptyList[String], Int] = "Error A".invalidNel[Int]
+                    val b: Validated[NonEmptyList[String], Int] = "Error B".invalidNel[Int]
+
+                    // Validated.Invalid(NonEmptyList("Error A", "Error B"))
+                    val res: Validated[NonEmptyList[String], (Int, Int)] = a product b
+                    ```
+
+                    ---
+
+                    Pure stack-safe lazy evaluation with `Eval`
+
+                    ```scala [1-10]
+                    import cats.Eval
+
+                    def factorial(n: BigDecimal): Eval[BigDecimal] =
+                      if (n > 1)
+                        Eval.defer(factorial(n - 1).map(_ * n))
+                      else
+                        Eval.now(1)
+                    ```
+
+                    ---
+
+                    `Ior[A, B]` data type that can contain A, B or both A and B
+
+                    ```scala [1-10]
+                    import cats.data.Ior
+
+                    val left: String Ior Int = Ior.left("A")
+                    val right: String Ior Int = Ior.right(10)
+                    val both: String Ior Int = Ior.both("A", 10)
+                    ```
+
+                    ---
+
+                    `cats` is a big utility library
+
+                    We encourage you to examine [it](https://typelevel.org/cats/) on your own.
+
+                    Some concepts and aspects will be revisited in future lectures
+
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## `fs2`
+
+                    Functional Streams
+
+                    [Documentation](https://fs2.io/#/getstarted/install)
+
+                    ---
+
+                    `Stream[F[_], A]` - is an infinite collection that emits elements of type A and may trigger some
+                    side effect computations in `F[_]`
+
+                    ---
+
+                    In general case, stream can be a pure collection:
+
+                    ```scala [1-5]
+                    import fs2.Stream
+
+                    val s0 = Stream.emit(1)
+                    val s1 = Stream.emit(2, 3, 4)
+                    val s2 = s0 ++ s1
+                    ```
+                    ---
+
+                    Pure streams can be evaluated into finite collection `List` or `Vector`:
+
+                    ```scala [1-2]
+                    val list = s2.toList // List(1, 2, 3, 4)
+                    val vector = s2.toVector // Vector(1, 2, 3, 4)
+                    ```
+
+                    ---
+
+                    Also stream evaluation can trigger evaluation of side effects in `IO`:
+
+                    ```scala [1-10]
+                    import cats.effect.IO
+
+                    val s0: Stream[IO, Int] = Stream.eval(
+                      IO.delay {
+                        println("Boom starting evaluation")
+                        1
+                      }
+                    )
+                    ```
+
+                    Stream can be compiled into single effect `IO` through `compile`
+
+                    ```scala [1-3]
+                    val resAll: IO[Vector[Int]] = s0.compile.toVector
+                    val resNo: IO[Unit] = s0.compile.drain
+                    val resAcc: IO[Int] = so.compile.fold(0)(_ + _)
+                    ```
+
+                    ---
+
+                    Why do we need streams?
+
+                    ---
+
+                    Main use case: Interaction with `I/O` to only work with chunk of data.
+                    Avoiding storing everything in RAM
+
+                    ---
+
+                    Other use cases:
+                    - Building a Http/GRPC server
+                    - Message Broker consumers
+                    - Interaction with file system, sockets
+
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## `http4s`
+
+                    Functional Http Server based on `fs2` Streams
+
+                    [Documentation](https://http4s.org/)
+
+                    ---
+
+                    How can we model http server in functional programming?
+
+                    ---
+
+                    We can model http server as simple function:
+
+                    ```scala [1-4]
+                    import cats.effect.IO
+                    import org.http4s.{Request, Response}
+
+                    type Http = Request[IO] => IO[Response[IO]]
+                    ```
+
+                    ---
+
+                    Request can be viewed as HTTP protocol request
+
+                    ```scala [1-7]
+                    case class Request[F[_]](
+                      method: Method,
+                      uri: Uri,
+                      httpVersion: HttpVersion,
+                      headers: Vector[Header],
+                      body: Stream[F, Byte]
+                    )
+                    ```
+
+                    Notice: Body is a `fs2.Stream`
+
+                    We are not reading it in server RAM
+                    ---
+
+                    Same can be viewed for HTTP response:
+
+                    ```scala [1-6]
+                    case class Response[F[_]](
+                      status: Status,
+                      httpVersion: HttpVersion,
+                      headers: Vector[Header],
+                      body: Stream[F, Byte]
+                    )
+                    ```
+
+                    Here response body is also a `fs2.Stream`
+
+                    ---
+                    Modern web applications are build using REST
+
+                    We are encoding through HTTP verbs, URIs and parameters actions that
+                    we can make to a resource:
+
+                    ```bash
+                    GET  /inno/scala/marks -- list all marks
+                    POST /inno/scala/marks -- create a new mark
+                    ```
+
+                    ---
+
+                    How can we encode an http route for http server?
+
+
+                    ---
+
+                    Answer - using partial function
+
+                    ```scala [1-3]
+                    import cats.effect.IO
+
+                    type HttpRoute = Request[IO] => IO[Option[Response[IO]]]
+                    ```
+
+                    ---
+
+                    Let's define http routes for marks resource:
+
+                    ```scala [1-10]
+                    val getMarks: HttpRoutes[IO] = HttpRoutes.of[IO] {
+                      case GET -> Root / "inno" / "scala" / "marks" =>
+                        IO(Response(Status.Ok)) // logic
+                    }
+
+                    val createMarks: HttpRoutes[IO] = HttpRoutes.of[IO] {
+                      case req @ POST -> Root / "inno" / "scala" / "marks" =>
+                        IO(Response(Status.Ok)) // logic
+                    }
+                    ```
+                    ---
+
+                    Now let's combine routes and make http requests:
+
+                    ```scala [1-3]
+                    val routes = getMarks <+> createMarks // combining routes
+
+                    val http: Http[IO] = routes.orNotFound // define default
+                    ```
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## `circe`
+
+                    Json Library
+
+                    [Documentation](https://circe.github.io/circe/)
+
+                    ---
+
+                    Circe has a JSON AST that is defined as a ADT:
+
+                    ```scala [1-10]
+                    import io.circe.Json
+                    import io.circe.parser._
+
+                    val json: Json = parse(
+                      """
+                      {
+                         "name": "Vasiliy"
+                      }
+                      """
+                    )
+                    ```
+
+                    ---
+
+                    `Json` can be back printed to `String`:
+
+                    ```scala [1-10]
+                    import io.circe.Printer
+
+                    val res: String = Printer.noSpaces.print(json)
+                    ```
+
+                    ---
+
+                    `circe` also defines special typeclasses for encoding and decoding types to
+                    and from Json AST
+
+                    ```scala [1-7]
+                    trait Encoder[T] {
+                      def encode(t: T): Json
+                    }
+
+                    trait Decoder[T] {
+                      def decode(j: Json): Either[ParsingFailure, T]
+                    }
+                    ```
+
+                    ---
+
+                    Also `circe` supports auto-derivation of `Encoder` and `Decoder` instances for
+                    case classes using macros
+
+                    ```scala [1-10]
+                    import io.circe.generic.semiauto._
+
+                    case class User(username: String, age: Int)
+
+                    object User {
+                      implicit val encoder: Encoder[User] = deriveEncoder[User]
+                      implicit val decoder: Decoder[User] = deriveDecoder[User]
+                    }
+                    ```
+
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## doobie
+
+                    Functional JDBC layer for Database
+
+                    [Documentation](https://tpolecat.github.io/doobie/)
+                    ---
+
+                    Core building block - `ConnectionIO`. Typed separate `SQL` statements
+
+                    ```scala [1-5]
+                    import doobie._
+
+                    def find(n: String): ConnectionIO[Vector[Mark]] =
+                      sql"select mark from inno.marks".query[Mark].vector
+                    ```
+
+                    ---
+
+                    Each single ConnectionIO will be to a native `java.sql.Connection`
+
+                    We can have several statements, that will be executed on one connection
+
+                    ---
+                    We can combine several `ConnectionIO` into one transaction:
+
+                    ```scala [1-6]
+                    def findTwo(a: String, b: String): ConnectionIO[Vector[Mark]] =
+                      for {
+                        aMarks <- find(a)
+                        bMarks <- find(b)
+                      } yield aMarks + bMarks
+                    ```
+                    ---
+
+                    Finally, we can evaluate `ConnectionIO` into `F[_]` using `Transactor`
+
+                    ```scala [1-10]
+                    val transactor: Transactor[IO] = ???
+
+                    def run: IO[Vector[Mark]] =
+                      findTwo("a", "b").transact(transactor)
+                    ```
+                </textarea>
+            </section>
+        </section>
+    </div>
+</div>
+
+
+</body>
+</html>
