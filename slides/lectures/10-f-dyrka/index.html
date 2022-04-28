@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    
+    <title>Lecture 10 - Higher Kinded Polymorphism</title>
+  <script type="module" crossorigin src="/assets/vendor.ddd8df57.js"></script>
+  <script type="module" crossorigin src="/assets/main.467d0acf.js"></script>
+  <link rel="stylesheet" href="/assets/main.5ea68116.css">
+</head>
+<body>
+<div class="reveal">
+    <div class="slides">
+        <!--Intro-->
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## Higher Kinded Polymorphism
+                    Lecture 10
+
+                    ---
+
+                    ### Content
+
+                    - `F[_]` one more time
+                    - `FunctionK`
+                    - `OptionT`
+                    - `EitherT`
+                    - `ReaderT`
+                    - `WriterT`
+
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    Let's recall basic type parameters:
+
+                    ```scala [1-3]
+                    // type parameter `B` - accumulator
+                    // type parameter `T` - element
+                    def foldLeft[B, T](acc: B)(f: (B, T) => B): B = ???
+
+                    ```
+
+                    ---
+
+                    This type parameters represent an abstract type
+
+                    What if type parameter represented a function?
+
+                    ---
+
+                    Scala allows such parameters:
+
+                    ```scala [1-5]
+                    // type parameter `F[_]` - abstract collection
+                    // type parameter `B` - accumulator
+                    // type parameter `T` - element
+                    def foldLeftCollection[F[_], B, T](collection: F[T])
+                      (acc: B)(f: (B, T) => B): B = ???
+                    ```
+
+                    ---
+
+                    - `F[_]` is a type constructor
+                    - By applying `F[_]` to types `A`, `B`, `C` we will get three new types:
+                    `F[A]`, `F[B]`, `F[C]`
+
+                    ---
+
+                    - We can represent `F[_]` as a function:
+                      - __`Type -> Type`__
+                      - __`* -> *`__
+                    - Ordinary type parameter `T` is a constant:
+                      - __`Type`__, or
+                      - __`*`__
+
+                    ---
+
+                    - Such notation is called a __`kind`__
+                    - Kinds can have different forms
+
+                    ---
+
+                    ```scala [1-3]
+                    trait Show[-T] {
+                      def show(t: T): String
+                    }
+                    ```
+
+                    Trait `Show` has the kind of the form: __`Type -> Type`__, thus it can be also used
+                    as an `F[_]` parameter:
+
+                    ---
+
+                    ```scala [1-7]
+                    trait Name[F[_]] {
+                      def name: String
+                    }
+
+                    val instance: Name[Show] = new Name[Show] {
+                      def name: String = "Show"
+                    }
+                    ```
+
+                    ---
+
+                    We can even use the same type through `Id`:
+
+                    ```scala [1-15]
+                    type Id[A] = A
+
+                    val instance: Name[Id] = new Name[Id] {
+                      def name: String = "Id"
+                    }
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    trait Foo[F[_]] {
+                      def pure[A](a: A): F[A]
+                    }
+
+                    val instance: Foo[Id] = new Foo[Id] {
+                      def pure[A](a: A): A = a
+                    }
+
+                    ```
+
+                    ---
+
+                    What trait will have a kind?
+
+                    __`Type -> Type -> Type`__
+
+                    ---
+
+                    Answer:
+                    ```scala [1]
+                    trait Foo[A, B]
+                    ```
+
+                    ---
+
+                    What trait will have the kind?
+
+                    __`(Type -> Type) -> Type`__
+                    ---
+
+                    Answer:
+
+                    ```scala [1]
+                    trait Foo[F[_]]
+                    ```
+                    ---
+
+                    What trait will have the kind?
+
+                    __`(Type -> Type -> Type) -> Type`__
+
+                    ---
+
+                    Answer:
+                    ```scala [1]
+                    trait Foo[F[_, _]]
+                    ```
+
+                    ---
+
+                    What kind does this trait have?
+
+                    ```scala [1]
+                    trait Foo[A, F[_], B]
+                    ```
+
+                    ---
+
+                    Answer:
+
+                    __`Type -> (Type -> Type) -> Type -> Type`__
+
+                    ---
+
+                    What kind does this trait have?
+
+                    ```scala [1]
+                    trait Foo[M[_[_]]]
+                    ```
+
+                    ---
+
+                    Answer:
+
+                    __`((Type -> Type) -> Type) -> Type`__
+
+                    ---
+
+                    ## kind-projector
+
+                    Compile time plugin for better work with kinds
+
+                    ---
+
+                    There is a problem of converting one kind form to another with specific types:
+
+                    ```scala [1-5]
+                    def foo[F[_]]: ???
+
+                    // Need special type alias to call foo
+                    type EitherThrow[A] = Either[Throwable, A]
+                    foo[EitherThrow]
+                    ```
+
+                    ---
+
+                    `kind-projector` plugin introduce a new syntax for anonymous type aliases
+
+                    ```scala [1-5]
+                    def foo[F[_]]: ???
+
+                    // Special `*` syntax
+                    foo[Either[Throwable, *]]
+                    foo[Either[Exception, *]]
+                    ```
+
+                    ---
+
+                    ```scala [1-5]
+                    trait Foo[F[_], Other]
+
+                    def bar[F[_]: Foo[*[_], String]]
+
+                    bar[Foo[Option, *]]
+                    ```
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## FunctionK
+
+                    Transformation between any `F[_]` и `G[_]`
+
+                    ---
+
+                    Let's recall a definition of an ordinary function:
+
+                    ```scala [1-15]
+                    trait Function1[-T, +R] {
+                      def apply(t: T): R
+                    }
+                    ```
+
+                    ---
+
+                    `FunctionK` is the same for `F[_]` and `G[_]` type parameters
+
+                    Definition (is a part of cats)
+
+                    ```scala [1-5]
+                    package cats
+
+                    trait FunctionK[F[_], G[_]] {
+                      def apply[A](fa: F[A]): G[A]
+                    }
+                    ```
+
+                    ---
+
+                    Using it, we can define transformations:
+
+                    ```scala [1-8]
+                    val listToVector: FunctionK[List, Vector] =
+                      new FunctionK[List, Vector] {
+                        def apply[A](fa: List[A]): Vector[A] =
+                          fa.toVector
+                      }
+
+                    val list: List[Int]     = List(1, 2, 3, 4)
+                    val vector: Vector[Int] = listToVector(list)
+                    ```
+
+                    ---
+
+                    `FunctionK` is too verbose, thus there is a special syntax `~>`
+
+                    ```scala [1-8]
+                    import cats.~>
+
+                    val listToVector: List ~> Vector =
+                      new ~>[List, Vector] {
+                        def apply[A](fa: List[A]): Vector[A] =
+                          fa.toVector
+                      }
+                    ```
+
+                    ---
+
+                    We can even compose them
+
+                    ```scala [1-4]
+                    def compose[F[_], G[_], H[_]](f: F ~> G, g: G ~> H): F ~> H =
+                      new ~>[F, H] {
+                        def apply[A](fa: F[A]): H[A] = g(f(fa))
+                      }
+                    ```
+
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## OptionT
+
+                    `F[Option[T]]`
+
+                    ---
+
+                    `OptionT` is a light wrapper of `F[Option[T]]` with useful set of methods
+
+                    ---
+
+                    ```scala [1-15]
+                    import cats.effect.IO
+
+                    def readLineOpt: IO[Option[String]] = ???
+                    def addGreeting(raw: String): String = s"Hi!, $raw"
+                    def writeLine(output: String): IO[Unit] = ???
+
+                    def program: IO[Unit] =
+                      readLineOpt
+                        .map(_.map(addGreeting))
+                        .flatMap {
+                           case Some(out) => writeLine(out)
+                           case None      => IO.unit
+                        }
+                    ```
+                    ---
+
+                    We can rewrite it using `OptionT`:
+
+                    ```scala [1-15]
+                    import cats.data.OptionT
+                    import cats.effect.IO
+
+                    def readLineOpt: OptionT[IO, String] = ???
+                    def addGreeting(raw: String): String = s"Hi!, $raw"
+                    def writeLine(output: String): IO[Unit] = ???
+
+                    def program: IO[Unit] =
+                      readLineOpt
+                        .map(addGreeting)
+                        .semiflatMap(writeLine)
+                        .value // IO[Option[Unit]]
+                        .void  // IO[Unit]
+                    ```
+
+                    ---
+
+                    ## EitherT
+
+                    `F[Either[A, B]]`
+
+                    ---
+
+                    `EitherT` is a light wrapper of `F[Either[A, B]]` with useful set of methods
+
+                    ```scala [1-15]
+                    import cats.syntax.applicative._
+                    import cats.syntax.either._
+                    import cats.effect.IO
+
+                    sealed trait AuthErr
+                    object AuthErr {
+                      case object Unauthorized extends AuthErr
+                      case object Forbidden extends AuthErr
+                    }
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    def checkSession(token: String):
+                      IO[Either[AuthErr, TokenInfo]] = ???
+                    def checkPermission(
+                      token: String,
+                      permission: Permission
+                    ): IO[Either[AuthErr, Permissions]] = ???
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    def program(token: String):
+                      IO[Either[AuthErr, (TokenInfo, Permissions)]] =
+                      checkSession(token).flatMap {
+                        case Left(err) =>
+                          err.asRight[(TokenInfo, Permissions)].pure[IO]
+                        case Right(tokenInfo) =>
+                          checkPermission(token, Permission.Read).map(
+                            _.map(permissions => (tokenInfo, permissions))
+                          )
+                      }
+                    ```
+
+                    ---
+
+                    We can simplify this using `EitherT`:
+
+                    ```scala [1-15]
+                    import cats.data.EitherT
+
+                    def checkSession(token: String):
+                      EitherT[IO, AuthErr, TokenInfo] = ???
+                    def checkPermission(
+                      token: String,
+                      permission: Permission
+                    ): EitherT[IO, AuthErr, Permissions] = ???
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    def program(token: String):
+                      EitherT[IO, AuthErr, (TokenInfo, Permissions)]] =
+                      for {
+                        tokenInfo   <- checkSession(token)
+                        permissions <- checkPermission(token, Permission.Read)
+                      } yield (tokenInfo, permissions)
+                    ```
+
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## ReaderT
+
+                    `A => F[B]`
+
+                    ---
+
+                    Let's start from simple `UserRepository`
+
+                    ```scala [1-5]
+                    trait UserRepository {
+                      def getUsers(page: Int, offset: Int): Vector[User]
+                      def createUser(user: User): Unit
+                      def getUser(id: String): Option[User]
+                    }
+                    ```
+
+                    ---
+
+                    - Now, suppose you want to log information about the request
+                    - Straight-forward approach:
+
+                    ```scala [1-15]
+                    case class HttpRequest(requestId: String, uri: String)
+
+                    trait UserRepository {
+                      def getUsers(page: Int, offset: Int)
+                        (req: HttpRequest): Vector[User]
+                      def createUser(user: User)
+                        (req: HttpRequest): Unit
+                      def getUser(id: String)
+                        (req: HttpRequest): Option[User]
+                    }
+                    ```
+
+                    ---
+
+                    We can rewrite it even further
+
+                    ```scala [1-15]
+                    trait UserRepository {
+                      def getUsers(page: Int, offset: Int):
+                        HttpRequest => Vector[User]
+                      def createUser(user: User):
+                        HttpRequest => Unit
+                      def getUser(id: String)
+                        HttpRequest => Option[User]
+                    }
+                    ```
+
+                    ---
+
+                    Or
+
+                    ```scala [1-15]
+                    type Reader[A, B] = A => B
+
+                    trait UserRepository {
+                      def getUsers(page: Int, offset: Int):
+                        Reader[HttpRequest, Vector[User]]
+                      def createUser(user: User):
+                        Reader[HttpRequest, Unit]
+                      def getUser(id: String)
+                        Reader[HttpRequest, Option[User]]
+                    }
+                    ```
+
+                    ---
+
+                    Or
+
+                    ```scala [1-15]
+                    type WithHttp[B] = Reader[HttpRequest, B]
+
+                    trait UserRepository {
+                      def getUsers(page: Int, offset: Int):
+                        WithHttp[Vector[User]]
+                      def createUser(user: User):
+                        WithHttp[Unit]
+                      def getUser(id: String)
+                        WithHttp[Option[User]]
+                    }
+                    ```
+
+                    ---
+
+                    For `WithHttp` `map` and `flatMap` can be automatically derived:
+
+                    ```scala [1-15]
+                    def createAndGet(user: User)
+                      (repo: UserRepository): WithHttp[Option[User]] =
+                      for {
+                        _ <- repo.createUser(user)
+                        userOpt <- repo.getUser(user.id)
+                      } yield userOpt
+                    ```
+
+                    ---
+
+                    Same can be done for `ReaderT` (aka Kleisli)
+
+                    ```scala [1-15]
+                    type WithHttp[B] = ReaderT[IO, HttpRequest, B]
+
+                    trait UserRepository {
+                      def getUsers(page: Int, offset: Int):
+                        WithHttp[Vector[User]]
+                      def createUser(user: User):
+                        WithHttp[Unit]
+                      def getUser(id: String)
+                        WithHttp[Option[User]]
+                    }
+                    ```
+
+                    ---
+
+                    For this `WithHttp` `map` and `flatMap` can be automatically derived:
+
+                    ```scala [1-15]
+                    def createAndGet(user: User)
+                      (repo: UserRepository): WithHttp[Option[User]] =
+                      for {
+                        _ <- repo.createUser(user)
+                        userOpt <- repo.getUser(user.id)
+                      } yield userOpt
+                    ```
+
+                    ---
+
+                    At the end, when we want to start `IO` computation we need provide our argument:
+
+                    ```scala [1-15]
+                    def repo: UserRepository
+
+                    def program: IO[Option[User]] =
+                      createAndGet(User(1, "v.ivanov"))(repo)
+                        .run(
+                          HttpRequest("12345", "http://locahost:8080/users")
+                        )
+                    ```
+
+                    ---
+
+                    We also can write logic that depends on the context:
+
+                    ```scala [1-15]
+                    def createAndLog(user: User)
+                      (repo: UserRepository): WithHttp[Unit] =
+                      for {
+                        req <- ReaderT.ask[IO, HttpRequest]
+                        _   <- IO(println(s"Creating user $user from $req"))
+                        _   <- repo.create(user)
+                        _   <- IO(println(s"Created user $user from $req"))
+                      } yield ()
+                    ```
+
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## WriterT
+
+                    `F[(L, V)]`
+
+                    ---
+
+                    `WriterT` allows to accumulate some value of type `L`.
+
+                    Thus, `L` must be a `Monoid`
+
+                    ---
+
+                    ```scala [1-15]
+                    type LoggedIO[A] = WriterT[IO, Vector[String], A]
+
+                    def compute: LoggedIO[Unit] =
+                      for {
+                        _ <- WriterT.tell(Vector("Log #1"))
+                        _ <- WriterT.liftF(IO(println("Impure Log #1")))
+                        _ <- WriterT.tell(Vector("Log #2"))
+                        _ <- WriterT.liftF(IO(println("Impure Log #2")))
+                      } yield ()
+                    ```
+
+                    ---
+
+                    ```scala [1-2]
+                    def result: IO[Vector[String]] =
+                      compute.written // Inside IO: Vector("Log #1", "Log #2")
+                    ```
+                </textarea>
+            </section>
+        </section>
+    </div>
+</div>
+
+
+</body>
+</html>
