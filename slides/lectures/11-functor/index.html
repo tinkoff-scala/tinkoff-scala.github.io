@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    
+    <title>Lecture 10 - Functor, Applicative, Monad</title>
+  <script type="module" crossorigin src="/assets/vendor.ddd8df57.js"></script>
+  <script type="module" crossorigin src="/assets/main.467d0acf.js"></script>
+  <link rel="stylesheet" href="/assets/main.5ea68116.css">
+</head>
+<body>
+<div class="reveal">
+    <div class="slides">
+        <!--Intro-->
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## Functor, Applicative, Monad
+                    Lecture 11
+
+                    ---
+
+                    ### Content
+
+                    - `Functor`
+                    - `Apply`, `Applicative`
+                    - `FlatMap`, `Monad`
+                    - `Parallel`
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## Functor
+
+                    ```scala [1-3]
+                    trait Functor[F[_]] {
+                      def map[A, B](fa: F[A])(f: A => B): F[B]
+                    }
+                    ```
+
+                    ---
+
+                    - `Functor` is a higher-kinded typeclass
+                    - Allows to change a type in some context `F[_]` using a pure function
+
+                    ---
+
+                    Examples
+
+                    ```scala [1-15]
+                    import cats.Functor
+
+                    val listInt: List[Int] = List(1, 2, 3)
+                    val listString: List[String] =
+                      Functor[List].map(listInt)(_.toString)
+                    // listString: List("1", "2", "3")
+
+                    val optionInt: Option[Int] = Some(1)
+                    val optionDouble: Option[Double] =
+                      Functor[Option].map(optionInt)(_.toDouble)
+
+                    // optionDouble: Some(1.0)
+                    ```
+
+                    ---
+
+                    Also `Functor` can be viewed as special lift from pure function `A => B` into some context
+                    `F[_]`: `F[A] => F[B]`
+
+                    ```scala [1-6]
+                    trait Functor[F[_]] {
+                      def map[A, B](fa: F[A])(f: A => B): F[B]
+
+                      def lift[A, B](f: A => B): F[A] => F[B] =
+                        fa => map(fa)(f)
+                    }
+                    ```
+
+                    ---
+
+                    ### Laws
+
+                    Identity Law:
+
+                    ```scala
+                    fa.map(x => x) = fa
+                    ```
+
+                    Changes nothing if applying identity function
+
+                    ---
+
+                    Composition Law:
+
+                    ```scala
+                    fa.map(f).map(g) = fa.map(f.andThen(g))
+                    ```
+
+                    Mapping with `f` and then with `g` is equal to mapping with composition of `f` and `g`
+
+                </textarea>
+            </section>
+        </section>
+
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## Apply & Applicative
+
+                    ---
+
+                    ## Apply
+
+                    ```scala [1-10,2,4-5]
+                    trait Apply[F[_]] extends Functor[F] {
+                      def ap[A, B](ff: F[A => B])(fa: F[A]): F[B]
+
+                      def product[A, B](fa: F[A], fb: F[B]): F[(A, B)] =
+                        ap(map(fa)(a => (b: B) => (a, b)))(fb)
+                    }
+                    ```
+                    ---
+
+                    - Allows combinations of independent effects or computations
+                    - Independent computations do not need results of each other to produce an output
+
+                    ---
+
+                    Examples
+
+                    ```scala [1-15]
+                    val someF: Option[Int => Long] = Some(_.toLong + 1L)
+                    val noneF: Option[Int => Long] = None
+                    val someInt: Option[Int] = Some(3)
+                    val noneInt: Option[Int] = None
+
+                    val res0 = Apply[Option].ap(someF)(someInt)
+                    // res0: Option[Long] = Some(4)
+                    val res1 = Apply[Option].ap(noneF)(someInt)
+                    //  res1: Option[Long] = None
+                    val res2 = Apply[Option].ap(someF)(noneInt)
+                    // res2: Option[Long] = None
+                    val res3 = Apply[Option].ap(noneF)(noneInt)
+                    // res3: Option[Long] = None
+                    ```
+
+                    ---
+
+                    Inherits `Functor`, thus has `map`
+
+                    ```scala [1-3]
+                    val someInt: Option[Int] = Some(3)
+
+                    val res: Option[Long] = Apply[Option].map(someInt)(_.toLong)
+                    ```
+
+                    ---
+
+                    ### Applicative
+
+                    ```scala [1-10]
+                    trait Applicative[F[_]] extends Apply[F] {
+                      def pure[A](a: A): F[A]
+
+                      def map[A, B](fa: F[A])(f: A => B): F[B] =
+                        ap(pure(f))(fa)
+                    }
+                    ```
+
+                    ---
+
+                    - Adds `pure` function to `Apply`
+                    - Allows to lift any value `A` into context of `F[_]`
+                    - Automatic implementation of `map`
+
+                    ---
+
+                    Examples
+
+                    ```scala [1-15]
+                    val res0 = Applicative[Option].pure(10)
+                    // res0: Option[Int] = Some(10)
+                    ```
+
+                </textarea>
+            </section>
+        </section>
+
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## FlatMap & Monad
+
+                    ---
+
+                    ## FlatMap
+
+                    ```scala [1-15]
+                    trait FlatMap[F[_]] extends Apply[F] {
+                      def flatMap[A, B](fa: F[A])(f: A => F[B]): F[B]
+
+                      def ap[A, B](ff: F[A => B])(fa: F[A]): F[B] =
+                        flatMap(ff)(f => map(fa)(f))
+                    }
+                    ```
+
+                    ---
+
+                    - Introduces `flatMap` operation
+                    - Dependent computations, when one computation depends on the result of another
+
+                    ---
+
+                    ```scala [1-15]
+                    import cats.syntax.option._
+
+                    def parseInt(in: String): Option[Int] =
+                      Either.catchNonFatal(in.toInt).toOption
+
+                    val stringOpt: Option[String] = Some("3")
+
+                    val res: Option[Int] =
+                      FlatMap[Option].flatMap(stringOpt)(parseInt)
+                    ```
+
+                    ---
+
+                    ## Monad
+
+                    ```scala [1-15]
+                    trait Monad[F[_]] extends FlatMap[F] with Applicative[F] {
+                      def pure[A](a: A): F[A]
+
+                      def flatMap[A, B](fa: F[A])(f: A => F[B]): F[B]
+
+                      def ap[A, B](ff: F[A => B])(fa: F[A]): F[B] =
+                        flatMap(ff)(f => map(fa)(f))
+
+                      def map[A, B](fa: F[A])(f: A => B): F[B] =
+                        flatMap(fa)(a => pure(f(a)))
+                    }
+                    ```
+
+                    ---
+
+                    ## TailRecM
+
+                    ```scala [1-15]
+                    trait Monad[F[_]] {
+                      ...
+                      def tailRecM[A, B](a: A)(f: A => F[Either[A, B]]): F[B]
+                    }
+                    ```
+
+                    ---
+
+                    Special method `tailRecM` for providing stack safe monadic recursive operations
+
+                    ```scala [1-15]
+                    implicit val optionMonad: Monad[Option] =
+                      new Monad[Option] {
+                        def flatMap[A, B](fa: Option[A])(f: A => Option[B]): Option[B] =
+                          fa.flatMap(f)
+
+                        def pure[A](a: A): F[A] = Some(a)
+
+                        @tailrec
+                        def tailRecM[A, B](a: A)(f: A => Option[Either[A, B]]): Option[B] =
+                          f(a) match {
+                            case None              => None
+                            case Some(Left(nextA)) => tailRecM(nextA)(f) // continue the recursion
+                            case Some(Right(b))    => Some(b)            // recursion done
+                          }
+                      }
+                    ```
+
+                    ---
+
+                    Is this `loop` stack-safe?
+
+                    ```scala [1-15]
+                    def loop[F[_]: Monad](in: Long): F[Long] = {
+                      if (in < 1)
+                        0L.pure[F]
+                      else
+                        Monad[F].pure(in).flatMap(i =>
+                         loop(i - 1).map(_ + i)
+                        )
+                    }
+                    ```
+
+                    ---
+
+                    Depends on what you pass as `F[_]`:
+
+                    ```scala [1-15]
+                    import cats.Eval
+
+                    println(loop[Eval].value)
+                    println(loop[Option])
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    def loopSafe[F[_]: Monad](in: Long): F[Long] =
+                      Monad[F].tailRecM((in, 0L)) { case (c, res) =>
+                        if (c < 1)
+                          res.asRight[(Long, Long)].pure[F]
+                        else
+                          ((c - 1, res + c)).asLeft[Long].pure[F]
+                      }
+                    ```
+
+                    ---
+
+                    - Special trait for 100% stack-safe Monads
+
+                    ```scala [1-15]
+                    trait StackSafeMonad[F[_]] extends Monad[F] {
+                      def tailRecM[A, B](a: A)(f: A => F[Either[A, B]]): F[B] =
+                        flatMap(f(a)) {
+                          case Left(a)  => tailRecM(a)(f)
+                          case Right(b) => pure(b)
+                        }
+                      }
+                    ```
+                </textarea>
+            </section>
+        </section>
+
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    - Applicative defines composition of independent computations
+                    - Monad defines composition of dependent computations
+
+                    ---
+
+                    - If `F[_]` is defined through `Monad`, `Applicative` is already defined
+                    - `Monad` inherits from `Applicative`
+
+                    ---
+
+                    - `Monad` restricts computations to be sequential
+                    - `Applicative` allows parallelism
+
+                    ---
+
+                    ## Parallel
+
+                    ```scala [1-15]
+                    trait Parallel[M[_]] {
+                      type F[_]
+
+                      def applicative: Applicative[F]
+                      def monad: Monad[M]
+                    }
+                    ```
+
+                    ---
+
+                    - Special type class `Parallel` that allows to define alternative
+                    applicative composition
+
+                    ---
+
+                    ```scala [1-17]
+                    import cats.syntax.parallel._
+                    import cats.syntax.flatMap._
+
+                    def validateLogin[F[_]](login: String): F[Unit]
+                    def validatePhone[F[_]](phone: String): F[Unit]
+                    def validateUser[F[_]](user: User): F[Unit]
+
+                    def validate[F[_]: Monad: Parallel](
+                      login: String,
+                      phone: String
+                    ): F[Unit] =
+                      (validateLogin[F](login), validatePhone[F](phone))
+                        .parMapN { case (_, _) =>
+                          User(login, phone)
+                        }
+                        .flatMap(validateUser[F])
+                        .void
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    type Errors = NonEmptyList[String]
+                    type EitherErrors[A] = Either[Errors, A]
+
+                    validate[EitherErrors]("Vasiliy", "555-55")
+                    validate[IO]("Vasiliy", "555-55")
+
+                    implicit val parallelForSyncIO: Parallel[SyncIO] =
+                      Parallel.identity[SyncIO]
+                    validate[SyncIO]("Vasiliy", "555-55")
+                    ```
+                    ---
+
+                </textarea>
+            </section>
+        </section>
+    </div>
+</div>
+
+
+</body>
+</html>
