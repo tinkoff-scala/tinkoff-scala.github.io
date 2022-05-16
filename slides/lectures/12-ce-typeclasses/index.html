@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    
+    <title>Lecture 12 - Cats Effect Typeclasses</title>
+  <script type="module" crossorigin src="/assets/vendor.ddd8df57.js"></script>
+  <script type="module" crossorigin src="/assets/main.467d0acf.js"></script>
+  <link rel="stylesheet" href="/assets/main.5ea68116.css">
+</head>
+<body>
+<div class="reveal">
+    <div class="slides">
+        <!--Intro-->
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## Cats Effect Typeclasses
+                    Lecture 12
+
+                    ---
+
+                    ### Content
+
+                    - `ApplicativeError`, `MonadError`
+                    - `MonadCancel`
+                    - `Unique`
+                    - `Spawn`
+                    - `Concurrent`
+
+                    ---
+
+                    - `Clock`
+                    - `Temporal`
+                    - `Sync`
+                    - `Async`
+                    - `Resource`
+
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section>
+                <img src="/assets/hierarchy-impure.93d24286.jpeg">
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## Applicative Error
+
+                    Typeclass for error handling
+
+                    ---
+
+                    - Abort the evaluation with an error
+                    - Restart the evaluation on error
+                    - Is a part of `cats-core`, not `cats-effect`
+
+                    ```scala [1-15]
+                    trait ApplicativeError[F[_], E]
+                      extends Applicative[F] {
+
+                      def raiseError[A](e: E): F[A]
+                      def handleErrorWith[A](fa: F[A])(f: E => F[A]): F[A]
+                    }
+                    ```
+
+                    ---
+
+                    Example:
+
+                    ```scala [1-15]
+                    import cats.ApplicativeError
+
+                    def boom[F[_]: ApplicativeError[*[_], Throwable]]: F[Unit] =
+                      ApplicativeError[F, Throwable].raiseError[Unit](
+                        new RuntimeException("Boom"!)
+                      )
+
+                    def detonate[F[_]: ApplicativeError[*[_], Throwable]]: F[Unit] =
+                      ApplicativeError[F, Throwable].handleErrorWith(boom[F]) {
+                        case th: RuntimeException => // handle
+                          ApplicativeError[F, Throwable].unit
+                        case th => // pass error
+                          ApplicativeError[F, Throwable].raiseError(th)
+                      }
+                    ```
+
+                    ---
+
+                    What downsides of this abstraction can you name?
+
+                    ---
+                    ## Monad Error
+
+                    ```scala [1-15]
+                    trait MonadError[F[_], E]
+                      extends ApplicativeError[F]
+                      with Monad[F]
+                    ```
+
+                    ---
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## Monad Cancel
+
+                    Typeclass that allows dealing with cancellation
+
+                    ---
+
+                    Fiber can terminate in three states:
+                    - Success
+                    - Error
+                    - Cancellation
+
+                    `MonadCancel` addresses the cancellation state
+                    ---
+
+                    ```scala [1-15]
+                    sealed trait Outcome[F[_], E, A]
+                    object Outcome {
+                      final case class Succeeded[F[_], E, A](fa: F[A])
+                        extends Outcome[F, E, A]
+                      final case class Errored[F[_], E, A](e: E)
+                        extends Outcome[F, E, A]
+                      final case class Canceled[F[_], E, A]()
+                        extends Outcome[F, E, A]
+                    }
+                    ```
+
+
+                    ---
+
+                    ```scala [1-15]
+                    trait MonadCancel[F[_], E]
+                      extends MonadError[F, E] {
+
+                      def canceled: F[Unit]
+
+                      def bracketCase[A, B](acquire: F[A])(use: A => F[B])(
+                        release: (A, Outcome[F, E, B]) => F[Unit]): F[B]
+                    }
+
+                    - Safe usage of resources
+                    - Things that should be finalized will be finalized
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    import cats.syntax.flatMap._
+
+                    def openFile[F[_]]: F[File]
+                    def closeFile[F[_]](f: File): F[Unit]
+                    def writeFile[F[_]](f: File, str: String): F[Unit]
+
+                    def program[F[_]: MonadCancel[*[_], Throwable]]: F[Unit] =
+                      MonadCancel[F, Throwable]
+                        .bracketCase[A, B](openFile[F])(writeFile[F](_, "Hello!")) {
+                        case (file, Outcome.Succeeded(_)) =>
+                          writeFile(f, "Succeeded") >> closeFile[F](f)
+                        case (file, Outcome.Errored(_)) =>
+                          writeFile(f, "Errored") >> closeFile[F](f)
+                        case (file, Outcome.Canceled()) =>
+                          writeFile(f, "Canceled") >> closeFile[F](f)
+                      }
+                    ```
+
+                    ---
+
+
+                    ```scala [1-15]
+                    import cats.effect.IO
+
+                    def cancelProgram: IO[Unit] =
+                      program[IO].start.flatMap(_.cancel)
+                    ```
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## Unique
+
+                    Typeclass that allows emission of unique tokens
+
+                    ```scala [1-15]
+                    trait Unique[F[_]] {
+                      def unique: F[Unique.Token]
+                    }
+
+                    object Unique {
+                      final class Token
+                    }
+                    ```
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## Spawn
+
+                    Typeclass that allows creation (spawn) of fibers
+
+                    ---
+
+                    ```scala[1-15]
+                    trait Fiber[F[_], E, A] {
+                      def join: F[Outcome[F, E, A]]
+                      def cancel: F[Unit]
+                    }
+                    ```
+                    - Await on fiber completion
+                    - Cancel fiber evaluation
+
+                    ---
+
+                    ```scala [1-15]
+                    trait Spawn[F[_]]
+                      extends MonadCancel[F, E]
+                      with Unique[F] {
+
+                      def start[A](fa: F[A]): F[Fiber[F, E, A]]
+                      def race[A, B](fa: F[A], fb: F[B]): F[Either[A, B]]
+
+                      def never[A]: F[A]
+                      def cede: F[Unit]
+                    }
+                    ```
+
+                    - Spawn new fiber
+                    - Start concurrent race between fibers
+                    - Create non-termination fiber
+                    - Create a fairness boundary
+
+                    ---
+
+                    - `never` law
+
+                    ```scala [1-15]
+                    def left[F[_]: Spawn]: F[Unit] =
+                      Spawn[F].never[Unit].start.flatMap(_.cancel)
+                    def right[F[_]: Spawn]: F[Unit] =
+                      Spawn[F].unit
+                    ```
+
+                    ---
+
+                    - `cede` is just a hint to a runtime
+                    - fiber passes control back to runtime
+                    - interrupt of long synchronous computations
+
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## Concurrent
+
+                    Typeclass that allows inter-fiber communication
+
+                    ---
+
+                    ```scala [1-15]
+                    trait Concurrent[F[_]] {
+                      def ref[A](a: A): F[Ref[F, A]]
+                      def deferred[A]: F[Deferred[F, A]]
+                    }
+                    ```
+
+                    - Creation of already familiar `Ref` and `Deferred`
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## Clock
+
+                    Typeclass that allows access to time in runtime platform
+
+                    ---
+
+                    ```scala [1-15]
+                    trait Clock[F[_]] {
+                      // java.lang.System.nanoTime
+                      def monotonic: F[FiniteDuration]
+
+                      // java.lang.System.currentTimeMillis
+                      def realTime: F[FiniteDuration]
+                    }
+                    ```
+
+                    ---
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## Temporal
+
+                    Typeclass that allows suspension in time
+
+                    ---
+
+                    ```scala [1-15]
+                    trait Temporal[F[_]]
+                      extends Concurrent[F]
+                      with Clock[F] {
+
+                      def sleep(time: FiniteDuration): F[Unit]
+                    }
+                    ```
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## Sync
+
+                    Typeclass that suspends any synchronous computations
+
+                    ---
+
+                    ```scala [1-15]
+                    trait Sync[F[_]]
+                      extends MonadCancel[F, Throwable]
+                      with Clock[F]
+                      with Unique[F] {
+
+                      def suspend[A](hint: Sync.Type)(thunk: => A): F[A]
+                    }
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    sealed trait Type extends Product with Serializable
+                    object Type {
+                      case object Delay extends Type
+                      case object Blocking extends Type
+                      case object InterruptibleOnce extends Type
+                      case object InterruptibleMany extends Type
+                    }
+                    ```
+
+                    ---
+
+                    - `Delay` will be executed normally
+                    - `Blocking` will be executed on blocking pool
+                    - `InterruptibleOnce` - will be interrupted once thread in case of blocking
+                    and cancellation of fiber
+                    - `InterruptibleMany` - will be interrupted many times thread in case of blocking
+                    and cancellation of fiber
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## Async
+
+                    Typeclass that suspends any asynchronous computations
+                    ---
+
+                    ```scala [1-15]
+                    trait Async[F[_]]
+                      extends Sync[F]
+                      with Temporal[F] {
+
+                      def executionContext: F[ExecutionContext]
+                      def async_[A](k: (Either[Throwable, A] => Unit) => Unit): F[A]
+                      def evalOn[A](fa: F[A], ec: ExecutionContext): F[A]
+                    }
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    def fromFuture[F[_]: Async, A](fut: F[Future[A]]): F[A] =
+                      fut.flatMap { f =>
+                        Async[F].executionContext.flatMap { implicit ec =>
+                          async_[A](cb => f.onComplete(t => cb(t.toEither)))
+                        }
+                      }
+                    ```
+                    ---
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## Resource
+
+                    Data class - already applied bracket
+
+                    ---
+
+                    ```scala [1-15]
+                    object Resource {
+                      def make[F[_], A](acquire: F[A])(release: A => F[Unit]): Resource[F, A]
+                      def eval[F[_], A](fa: F[A]): Resource[F, A]
+                    }
+
+                    abstract class Resource[F, A] {
+                      def use[B](f: A => F[B]): F[B]
+                    }
+                    ```
+
+                    - Already allocated resource
+                    - Resources compose
+
+                    ---
+
+                    ```scala [1-15]
+                    def file(name: String): Resource[IO, File] =
+                      Resource.make(openFile(name)))(file => close(file))
+                    val concat: IO[Unit] = (for {
+                      in1 <- file("file1")
+                      in2 <- file("file2")
+                      out <- file("file3")
+                      // Yields a Resource[IO, (File, File, File)]
+                    } yield (in1, in2, out)).use {
+                      case (file1, file2, file3) =>
+                        for {
+                          bytes1 <- read(file1)
+                          bytes2 <- read(file2)
+                          _ <- write(file3, bytes1 ++ bytes2)
+                        } yield ()
+                    }
+                    ```
+
+                    ---
+
+                    - Open __`file1`__
+                    - Open __`file2`__
+                    - Open __`file3`__
+                    - Read from __`file1`__
+                    - Read from __`file2`__
+                    - Write to __`file3`__
+                    - Close __`file3`__
+                    - Close __`file2`__
+                    - Close __`file1`__
+
+
+                </textarea>
+            </section>
+        </section>
+    </div>
+</div>
+
+
+</body>
+</html>
