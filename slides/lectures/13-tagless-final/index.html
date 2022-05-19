@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    
+    <title>Lecture 13 - Tagless Final</title>
+  <script type="module" crossorigin src="/assets/vendor.ddd8df57.js"></script>
+  <script type="module" crossorigin src="/assets/main.467d0acf.js"></script>
+  <link rel="stylesheet" href="/assets/main.5ea68116.css">
+</head>
+<body>
+<div class="reveal">
+    <div class="slides">
+        <!--Intro-->
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## Tagless Final
+                    Lecture 13
+
+                    ---
+
+                    Let's choose topic for next lecture:
+
+                    - Even more typeclasses for error-handling, context and logging
+                    - Even more tagless final for working with context
+                    - Even more tagless final for middleware
+                    - Open lecture with questions & answers
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Small Recap
+
+                    ---
+
+                    Our business logic encapsulates business _domain_
+
+                    ---
+
+                    We tend to design a specific language in order to describe our _domain_
+
+                    ---
+
+                    We define data of our domain
+
+                    We define operations on the data that encapsulates our business logic
+
+                    ---
+
+                    In other words, we design a domain-specific language - DSL
+
+                    ---
+
+                    DSLs that are defined in some programming languages are called _embedded_ -
+                    eDSLs
+
+                    They are _embedded_ in host language. In our case - Scala
+
+                    ---
+
+                    Scala has two most common practices to design an eDSL:
+                    - Initial Encoding
+                    - Tagless Final Encoding
+
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Initial Encoding
+
+                    ---
+
+                    Let's define a languages for simple math expressions:
+                    - sum
+                    - constant value
+                    - negation
+
+                    ---
+
+                    Let's express it in terms of ADT. Each variant is an operation:
+
+                    ```scala [1-15]
+                    sealed trait Maths
+                    object Maths {
+                      case class Add(left: Maths, right: Maths) extends Maths
+                      case class Const(v: Int) extends Maths
+                      case class Neg(v: Maths) extends Maths
+                    }
+                    ```
+
+                    ---
+
+                    Now we can define simple abstract expression:
+
+                    ```scala [1-15]
+                    import Maths._
+
+                    val maths: Maths =
+                      Add(
+                        Add(Const(1), Const(2)),
+                        Neg(Const(3))
+                      )
+                    ```
+
+                    ---
+
+                    Ok, now we must define an _interpreter_ for our program to compute values:
+
+                    ```scala [1-15]
+                    def compute(maths: Maths): Int =
+                      maths match {
+                        case Add(l, r) => compute(l) + compute(r)
+                        case Neg(v)    => - compute(v)
+                        case Const(v)  => v
+                      }
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    compute(maths)
+                    // 0
+                    ```
+
+                    ---
+
+                    Additionally, we can define other interpreters:
+
+                    ```scala [1-15]
+                    def pretty(maths: Maths): String =
+                      maths match {
+                        case Add(l, r) => pretty(l) + "+" + pretty(r)
+                        case Neg(v)    => " - (" + pretty(v) + ")"
+                        case Const(v)  => v.toString
+                      }
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    pretty(maths)
+                    // 1 + 2 - (3)
+                    ```
+
+                    ---
+
+                    Now, our business defined a new operation
+
+                    ```scala [1-15]
+                    object Maths {
+                      ...
+                      case class Mult(l: Maths, r: Maths) extends Maths
+                    }
+                    ```
+
+                    ---
+
+                    We, unfortunately, invalidate all our interpreters
+
+                    In other words, we must add new cases to our pattern matching
+
+                    ---
+
+                    ```scala [1-15]
+                    def compute(maths: Maths): String = {
+                      ...
+                      case Mult(l, r) => compute(l) * compute(r)
+                    }
+
+                    def pretty(maths: Maths): String = {
+                      ...
+                      case Mult(l, r) => pretty(l) + " * " + pretty(r)
+                    }
+                    ```
+
+                    ---
+
+                    You might think that this is a positive case. Compiler warns us, that
+                    something changed
+
+                    However, ADT are hardly composed and on huge codebase this painful to maintain
+
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Tagless Final Encoding
+
+                    ---
+
+                    Now let's rewrite Maths to use _tagless final_ encoding:
+
+                    ```scala [1-15]
+                    trait Maths[F[_]] {
+                      def const(a: Int): F[Int]
+                      def add(fa: F[Int], fb: F[Int]): F[Int]
+                      def neg(fa: F[Int]): F[Int]
+                    }
+
+                    object Maths {
+                      // Apply summoner для лаконичности
+                      def apply[F[_]](implicit maths: Maths[F]): Maths[F] = maths
+                    }
+                    ```
+
+                    ---
+
+                    Our new expression will look like this:
+
+                    ```scala [1-15]
+                    def expr[F[_] : Maths]: F[Int] =
+                      Maths[F].add(Maths[F].const(1), Maths[F].const(2))
+                    ```
+
+                    ---
+
+                    Now let's define interpreters for `Maths`:
+
+                    ```scala [1-15]
+                    type Id[A] = A
+
+                    implicit val compute: Maths[Id] = new Maths[Id] {
+                      def const(a: Int): Int = a
+                      def add(fa: Int, fb: Int): Int = fa + fb
+                      def neg(fa: Int): Int = -fa
+                    }
+
+                    expr[Id] // 3
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    type StringT[A] = String
+
+                    implicit val pretty: Maths[StringT] = new Maths[StringT] {
+                      def const(a: Int): String = a.toString
+                      def add(fa: String, fb: String): String = fa + " + " + fb
+                      def neg(fa: String): Int = " -(" + fa + ")"
+                    }
+
+                    expr[StringT] // 1 + 2
+                    ```
+
+                    ---
+
+                    Finally, business ask us to add multiply operation once again:
+
+                    ```scala [1-15]
+                    trait MathsMult[F[_] {
+                      def mult(a: F[Int], b: F[Int]): F[Int]
+                    }
+
+                    object MathsMult {
+                      // Apply summoner для лаконичности
+                      def apply[F[_]](implicit
+                        maths: MathsMult[F]
+                      ): MathsMult[F] = maths
+                    }
+                    ```
+
+                    ---
+
+                    We define new interpreters for new operation:
+
+                    ```scala [1-15]
+                    implicit val pretty: MathsMult[StringT] =
+                      new MathsMult[StringT] {
+                        def mult(fa: String, fb: String): String =
+                          "(" + fa + ") * (" + fb + ")"
+                        }
+
+                    implicit val compute: MathsMult[Id] =
+                      new MathsMult[Id] {
+                        def add(fa: Int, fb: Int): Int = fa * fb
+                      }
+                    ```
+
+                    ---
+
+                    At last, we can modify our expression to use new operation:
+
+                    ```scala [1-15]
+                    def expr2[F[_]: Maths: MathsMult]: F[Int] =
+                      MathsMult[F].mult(
+                        Maths[F].add(Maths[F].const(1), Maths[F].const(2)),
+                        Maths[F].const(3)
+                      )
+
+                    expr2[Id] // 9
+                    expr2[StringT] // (1 + 2) * (3)
+                    ```
+
+                    ---
+
+                    We can easily define new operations and interpreters for them
+
+                    Operations can compose using context bounds
+
+                    ---
+
+                    ### Modules
+
+                    `Maths` is an _tagless final_ __module__ that defines operations
+                    on our data
+
+                    Modules are also called __algebras__
+
+                    ---
+
+                    Modules != Typeclasses
+
+                    Because we can define several valid implementations of module for
+                    single `F[_]`
+
+                    Typeclasses restrict us to have only one valid implementation
+
+                    ---
+
+                    However, each typeclass is a module
+
+                    ---
+
+                    ### Layered Architecture
+
+                    Most common software architecture is _layered architecture_
+
+                    ---
+
+                    We define the basic operations on every integration in the application
+
+                    We define our _business domain_ in terms of basic operations
+
+                    We expose complex operations as our controllers for server
+
+                    ---
+
+                    For example,
+
+                    1. We define basic operations to work with users and their accounts:
+                       - `UserRepository`
+                       - `AccountRepository`
+                    2. We implement our business domain in terms of defined repositories:
+                       - `FraudDetection`
+                    3. We expose our business domain as a controller:
+                       - `FraudController`
+
+                    ---
+
+                    Thus, we achieve separate our business domain and concrete implementations:
+
+                    1. We can safely refactor logic of `FraudDetection`
+                       - Apply new strategy for `FraudDetection`
+                    2. We can safely change implementation of our repositories
+                       - Migrate from Oracle to Postgres
+
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Example
+
+
+                    ---
+
+                    Business Case:
+
+                    - We have some data of our users
+                    - Each user has a property that defines different levels of service that
+                    we provide for the user
+                    - Each user has a bonus account
+                    - We can deposit some bonuses for each user
+
+                    ---
+
+                    Business Logic:
+
+                    We want to implement a new loyalty program that distributes bonuses for users
+                    with high level of service
+
+                    ---
+
+                    Data:
+
+                    ```scala [1-15]
+                    @newtype case class UserId(v: String)
+                    @newtype case class Amount(v: BigDecimal)
+                    // Уровень обслуживания
+                    sealed trait ServiceLevel
+                    object ServiceLevel {
+                      case object High extends ServiceLevel
+                      case object Low  extends ServiceLevel
+                    }
+                    case class User(
+                      userId: UserId,
+                      level: ServiceLevel,
+                      name: String
+                    )
+                    ```
+
+                    ---
+
+                    Basic Operations:
+
+                    ```scala [1-15]
+                    trait UserRepository[F[_]] {
+                      def selectWithLevel(level: ServiceLevel): F[Vector[User]]
+                    }
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    trait BonusAccountRepository[F[_]] {
+                      def deposit(userId: UserId, amount: Amount): F[Unit]
+                    }
+                    ```
+
+                    ---
+
+                    Our business logic:
+
+                    ```scala [1-15]
+                    trait BonusDistribution[F[_]] {
+                      def depositForHigh(amount: Amount): F[Unit]
+                    }
+
+                    ```
+
+                    ---
+
+                    Now, let's implement:
+
+                    ```scala [1-15]
+                    import cats.Monad
+                    import cats.syntax.flatMap._  // синтаксис для FlatMap
+                    import cats.syntax.functor._  // синтаксис для Functor
+                    import cats.syntax.travers._  // синтаксис для Traverse
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    final class BonusDistributionImpl[F[_]: Monad](
+                      users: UserRepository[F],
+                      bonus: BonusAccountRepository[F]
+                    ) extends BonusDistribution[F] {
+                      def depositForHigh(amount: Amount): F[Unit] =
+                        for {
+                          users <- users.selectWithLevel(ServiceLevel.High)
+                          userIds = users.map(_.userId)
+                          _ <- userIds.traverse { userId =>
+                            bonus.deposit(userId, amount)
+                          }
+                      } yield ()
+                    }
+                    ```
+
+                    ---
+
+                    Let's look closely on `BonusDistributionImpl`. It has operations from:
+
+                    - `Monad` - `flatMap`, `pure`
+                    - `UserRepository` - `selectWithLevel`
+                    - `BonusAccountRepository` - `deposit`
+
+                    ---
+
+                    We can safely say, that these part of code does not involve any side effects:
+
+                    - F cannot fail here during composition
+                    - F cannot write logs
+                    - etc.
+
+                    ---
+
+                    These approach restricts us to use only specific operations during the implementation
+                    of our module
+
+                    Positive outcomes:
+
+                    - `Local Reasoning` about the code
+                    - More-specific module dependencies, can express exactly what we want
+                    - Easy to test, mock only on what you depend
+                    - Easy to refactor, add new operations / delete old ones
+
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Free Refactoring
+
+                    ---
+
+                    Now, suppose we reached a certain limit of our users and `depositForHigh` start
+                    to execute really slow.
+
+                    We can parallelize the bonus distribution
+
+                    ---
+
+                    ```scala [1-15]
+                    import cats.effect.syntax.concurrent._
+
+                    final class BoundedBonusDistributionImpl[F[_]: Concurrent](
+                      maxParallelism: Int
+                      users: UserRepository[F],
+                      bonus: BonusAccountRepository[F]
+                    ) extends BonusDistribution[F] {
+                      ...
+                    ```
+                    ---
+
+                    ```scala [1-15]
+                      ...
+                      def depositForHigh(amount: Amount): F[Unit] =
+                        for {
+                          users  <- users.selectWithLevel(ServiceLevel.High)
+                          userIds = users.map(_.userId)
+                          _ <- userIds.parTraverseN(maxParallelism) { userId =>
+                            bonus.deposit(userId, amount)
+                          }
+                        } yield ()
+                    }
+                    ```
+
+                    ---
+
+                    Now the implementations concurrently updates the bonus accounts of our users
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Testing
+
+
+                    ---
+
+                    Alternative implementations can be used for defining manual mocks
+
+                    ```scala [1-15]
+                    import cats.syntax.applicative._
+
+                    final class MockUserRepository[F[_]: Applicative](
+                      users: Map[ServiceLevel, Vector[User]]
+                    ) extends UserRepository[F] {
+
+                      def selectWithLevel(level: ServiceLevel): F[Vector[User]] =
+                        users.get(level).getOrElse(Vector.empty[User]).pure[F]
+                    }
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    import cats.data.StateT
+                    case class BonusState(vector: Vector[(UserId, Amount)])
+                      extends AnyVal
+                    type Mock[F[_], A] = StateT[F, BonusState, A]
+                    final class MockBonusAccountRepository[F[_]: Applicative]
+                      extends BonusAccountRepository[Mock] {
+                      def deposit(
+                        userId: UserId,
+                        amount: Amount
+                      ): Mock[F, Unit] =
+                        StateT.modify[F, BonusState](s =>
+                          BonusState(s.vector :+ ((userId, amount)))
+                        )
+                    }
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    object Test extends App {
+                      def run[F[_]: Monad]: F[BonusState] = {
+                        val users = Vector(
+                          User(UserId("martin"), ServiceLevel.High, "Martin"),
+                          User(UserId("steven"), ServiceLevel.High, "Steven"),
+                          User(UserId("michael"), ServiceLevel.Low, "Michael"),
+                        )
+
+                    ...
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    ...
+                        val userRepo     =
+                          new MockUserRepository[Mock[F, *]](susers)
+                        val bonusRepo    =
+                          new MockBonusAccountRepository[F]
+                        val distribution =
+                          new BonusDistributionImpl[Mock[F, *]](
+                            userRepo, bonusRepo
+                          )
+                        distribution
+                          .depositForHigh(Amount(100))
+                          .runS(BonusState(Vector.empty))
+                      }
+                    ...
+                    ```
+                    ---
+
+                    ```scala [1-15]
+
+                      assert(
+                        // Id[A] = A
+                        Test.run[Id] == BonusState(
+                          Vector(
+                            (UserId("martin"), Amount(100)),
+                            (UserId("steven"), Amount(100))
+                          )
+                        ) // true
+                      )
+                    }
+                    ```
+
+                    ---
+
+                    Test is pure, no asynchronous components and execution
+
+                    No need to create special thread pools or other runtime settings
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Why not Sync / Async?
+
+                    ---
+
+                    `Sync` and `Async` typeclasses are dangerous for `Tagless Final`
+
+                    ```scala [1-15]
+                    def wow[F[_]: Sync](userRepo: UserRepository[F]): F[Unit] =
+                      userRepo
+                        .selectWithLevel(ServiceLevel.Low)
+                        .flatMap { us =>
+                           us.traverse(u =>
+                             Sync[F].delay(println(s"User: $u"))
+                           )
+                        }
+                    ```
+
+                    ---
+
+                    `Sync` can
+                    - print anything
+                    - throw errors or raise any errors
+                    - any other side-effect
+
+                    ---
+
+                    That violates our intention to limit all possible operations in the context
+
+                    Thus, do not use `Sync` and `Async` in business domain. However, you
+                    can use them for basic operation
+
+                    ---
+
+                    Ok, but how to log / print something?
+
+                    ---
+
+                    We can define a new basic operation
+
+                    ```scala [1-15]
+                    trait Print[F[_]] {
+                      def println(s: String): F[Unit]
+                    }
+
+                    object Print {
+                      def apply[F[_]](implicit print: Print[F]): Print[F] =
+                        print
+
+                      implicit def fromSync[F[_]: Sync]: Print[F] =
+                        new Print[F] {
+                          def println(s: String): F[Unit] =
+                            Sync[F].delay(println(s))
+                        }
+                    }
+                    ```
+
+                    ---
+
+                    Let's rewrite `wow`:
+
+                    ```scala [1-15]
+                    def wow2[F[_]: Monad: Print](
+                      userRepo: UserRepository[F]
+                    ): F[Unit] =
+                      userRepo
+                        .selectWithLevel(ServiceLevel.Low)
+                        .flatMap { us =>
+                           us.traverse(u =>
+                             Print[F].print(s"User: $u")
+                           )
+                        }
+                    ```
+
+                    ---
+
+                    Now `wow2` can only print values and cannot raise errors or do other side-effects
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Results
+
+                    ---
+
+                    Tagless Final enforces:
+
+                    - `Extensibility` - you can add new operations easily without braking changes
+                    - `Testing` - easy to create mocks, factor out asynchronous processes
+                    - `Local Reasoning` - easy to understand, what is possible
+                    - `Refactoring` - business logic and implementation separation
+                </textarea>
+            </section>
+        </section>
+    </div>
+</div>
+
+
+</body>
+</html>
