@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    
+    <title>Lecture 14 - ToFu</title>
+  <script type="module" crossorigin src="/assets/vendor.ddd8df57.js"></script>
+  <script type="module" crossorigin src="/assets/main.467d0acf.js"></script>
+  <link rel="stylesheet" href="/assets/main.5ea68116.css">
+</head>
+<body>
+<div class="reveal">
+    <div class="slides">
+        <!--Intro-->
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## ToFu
+                    Lecture 14
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ## Origin
+
+                    ---
+
+                    __ToFu__, or __`tofu`__ came from Tinkoff's inner-source library called
+                    `fp-utils`
+
+                    Now it is broadly adopted by different companies
+                    ---
+
+                    It extends `cats` and `cats-effect` with additional abstractions for:
+
+                    - Working with Errors
+                    - Working with Contexts
+                    - Working with more higher-kinded typeclasses
+                    - ...
+
+                    ---
+
+                    Also, one module (`tofu-logging`) provides capabilities to work easily with structured
+                    contextual logs
+
+                    In other words, tool to write logs in json format
+
+                    ---
+
+                    We will cover in this lecture:
+
+                    - Working with Errors
+                    - Working with Context
+                    - Logging
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Working with Errors
+
+                    ---
+
+                    As I mentioned previously, `ApplicativeError` (or `MonadError`) has
+                    some severe disadvantages which `tofu` solves
+
+                    ---
+
+                    ### Extends `Applicative`
+
+                    First, main disadvantage - `ApplicativeError` is an `Applicative`
+
+                    ---
+
+                    ```scala [1-15]
+                    trait ApplicativeError[F[_], E] extends Applicative[F] {
+                      def raiseError[A](e: E): F[A]
+                      def handleErrorWith[A](fa: F[A])(
+                        f: E => F[A]
+                      ): F[A]
+                    }
+                    ```
+
+                    ---
+
+                    This disallows us to work with different error types for one `F[_]`:
+
+                    ```scala [1-15]
+                    import cats.syntax.applicativeError._
+
+                    def foo[F[_]](implicit
+                      errorOne: ApplicativeError[F, ErrorOne],
+                      errorTwo: ApplicativeError[F, ErrorTwo]
+                    ): F[Unit] =
+                      Applicative[F].pure(())
+
+                    // This will not compile
+                    ```
+
+                    Two instances of `Applicative` are in the scope. Compiler
+                    due to ambiguity cannot summon instance of `Applicative`
+
+                    ---
+
+                    If we think deeper, this restricts us to use only one error type
+                    for `F[_]`
+
+                    ---
+
+                    Moreover, `cats-effect` typeclasses (`Spawn`, `Concurrent`, `Sync`, etc.) are
+                    restricting us to only work with error equal to `Throwable`
+
+                    All of them are extending `Applicative[F, Throwable]`
+
+                    ---
+
+                    This contradicts Tagless Final approach, where we try to carefully
+                    pick specific context bounds.
+
+                    `cats-effect` typeclasses allow to fail our expression with any `Throwable`
+                    error.
+
+                    This is not appropriate in Tagless Final. We want to only allow
+                    a _specific_ small subset of all errors in the context
+
+                    ---
+
+                    Furthermore, `ApplicativeError` defines two operations, that
+                    differ in variance:
+
+                    - `raiseError` - failing the expression with an error (contravariant)
+                    - `handleErrorWith` - handling the error in the expression (covariant)
+
+                    ---
+
+                    Let's divide them and create new typeclasses
+
+                    ---
+
+                    ### Raise
+
+                    ```scala [1-15]
+                    trait Raise[F[_], -E] {
+                      def raise[A](e: E): F[A]
+                    }
+                    ```
+
+                    ---
+
+                    `Raise` is not extending `Applicative`
+
+                    ```scala [1-15]
+                    import cats.Applicative
+                    import tofu.Raise
+                    import tofu.syntax.raise._
+
+                    def foo[F[_]: Applicative](implicit
+                      errorOne: Raise[F, ErrorOne],
+                      errorTwo: Raise[F, ErrorTwo]
+                    ): F[Unit] =
+                      Applicative[F].pure(())
+
+                    // This will now compile
+                    ```
+                    ---
+
+                    This allows us freely use as many errors in our context as we want
+
+                    ---
+
+                    `Raise` is contravariant
+
+                    This allows us to use an instance `Raise[F, SuperError]` in places
+                    where `Raise[F, WeakError]` is needed, if `WeakError` extends `SuperError`
+
+                    ---
+
+                    ```scala [1-15]
+                    sealed trait SuperError
+                    case class WeakError(msg: String) extends SuperError
+
+                    def fail[F[_]: Raise[*[_], WeakError]]: F[Unit] =
+                      Raise[F, WeakError].raise[Unit](WeakError("Failed!"))
+
+                    implicit val raiseSuper: Raise[F, SuperError] = ???
+
+                    // can use `raiseSuper` as Raise[F, WeakError]
+                    fail[F]
+                    ```
+
+                    ---
+
+                    ### HandleTo
+
+                    ```scala [1-15]
+                    trait HandleTo[F[_], G[_], E] {
+                      def handleErrorWith[A](fa: F[A])(
+                        f: E => G[A]
+                      ): G[A]
+                    }
+                    ```
+
+                    ---
+
+                    `HandleTo` uses two parameters `F[_]` and `G[_]` to separate two contexts:
+
+                    - `F[_]` where an error `E` can occur
+                    - `G[_]` where an error `E` cannot occur
+
+                    ---
+
+                    The simplest example is with `Either` and `Id`:
+
+                    ```scala [1-15]
+                    implicit def handleEither[E]:
+                      HandleTo[Either[E, *], Id, E] =
+                      new HandleTo[Either[E, *], Id, E] {
+                        def handleErrorWith[A](fa: Either[E, A])(
+                          f: E => Id[A]
+                        ): Id[A] =
+                          fa match {
+                             case Left(e)  => f(e)
+                             case Right(v) => v
+                          }
+                      }
+                    ```
+
+                    ---
+
+                    ```scala[1-15]
+                    import cats.syntax.either._
+                    import tofu.syntax.handle._
+
+                    val v1: Int = 1.asRight[String].handleErrorWith(_ => 0)
+                    val v2: Int = "Error".asLeft[Int].handleErrorWith(_ => 0)
+
+                    // v1 = 1, v2 = 0
+                    ```
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Working with Context
+
+                    ---
+
+                    Our application needs to work with context. Usually, it
+                    is the context of our request:
+
+                    - We want to log/trace the unique id of our context
+                    - We want to log/trace which user is calling our system
+
+                    ---
+
+                    Let's define some typeclasses to help us
+
+                    ---
+
+                    ### With Context
+
+                    ```scala [1-15]
+                    trait WithContext[F[_], Ctx] {
+                      def context: F[Ctx]
+                    }
+                    ```
+
+                    Allows us to extract the context from `F[_]`
+
+                    ---
+
+                    ```scala [1-15]
+                    import tofu.common.Console
+
+                    def goToServiceA[F[_]]: F[User] = ???
+                    def goToServiceB[F[_]]: F[Account] = ???
+
+                    def simpleLogic[F[_]: Console: Monad]: F[Unit] =
+                      for {
+                        user <- goToServiceA[F]
+                        account <- goToServiceB[F]
+                        _ <- Console[F].putStrLn(
+                          s"User = $user, Account = $account"
+                        )
+                      } yield ()
+                    ```
+
+                    ---
+
+                    Now, let's modify it to log our calls:
+
+                    ```scala [1-15]
+                    case class HttpRequest(requestId: String)
+                    def contextualLogic[F[_]: Console: Monad](implicit
+                      withContext: WithContext[F, HttpRequest]
+                    ): F[Unit] =
+                      for {
+                        ctx <- withContexts.context
+                        _ <- Console[F].putStrLn(s"Calling A: $ctx")
+                        user <- goToServiceA[F]
+                        _ <- Console[F].putStrLn(s"Calling B: $ctx")
+                        account <- goToServiceB[F]
+                        _ <- Console[F].putStrLn(
+                          s"User = $user, Account = $account"
+                        )
+                      } yield ()
+                    ```
+
+                    ---
+
+                    We extracted our context with `WithContext`
+                    and simply logged everything
+
+                    However, now we need `WithContext` instance in order
+                    to run our logic:
+
+                    ```scala [1-15]
+                    simpleLogic[IO]     // OK
+                    contextualLogic[IO] // Not OK
+                    ```
+                    ---
+
+                    Let's derive `WithContext` for `ReaderT`:
+
+                    ```scala [1-15]
+                    import cats.syntax.applicative._
+
+                    implicit def deriveForReader[F[_]: Applicative, Ctx]:
+                      WithContext[ReaderT[F, Ctx, *], Ctx] =
+                      new WithContext[ReaderT[F, Ctx, *], Ctx] {
+                        def context: ReadeT[F, Ctx, Ctx] =
+                          ReaderT[F, Ctx, Ctx](_.pure[F])
+                      }
+                    ```
+
+                    ---
+
+                    Now we can call contextual logic:
+
+                    ```scala [1-15]
+                    simpleLogic[IO] // OK
+                    contextualLogic[ReadeT[IO, HttpRequest, *]] // OK
+                    ```
+
+                    ---
+
+                    But wait, we can go further and patch `Console` to use context:
+
+                    ```scala [1-15]
+                    implicit def ctxConsole[F[_]: FlatMap: Console, Ctx](
+                      implicit withContext: WithContext[F, Ctx]
+                    ): Console[F] =
+                      new Console[F] {
+                         def purStrLn(input: String): F[Unit] =
+                           for {
+                             ctx <- withContext.context
+                             _ <- Console[F].putStrLn(s"[CTX = $ctx] $input")
+                           } yield ()
+                      }
+                    ```
+
+                    ---
+
+                    Let's rewrite our simple logic to log calls:
+
+                    ```scala [1-15]
+                    def patchedLogic[F[_]: Console: Monad]: F[Unit] =
+                      for {
+                        _ <- Console[F].putStrLn("Calling A")
+                        user <- goToServiceA[F]
+                        _ <- Console[F].putStrLn("Calling B")
+                        account <- goToServiceB[F]
+                        _ <- Console[F].putStrLn(
+                          s"User = $user, Account = $account"
+                        )
+                      } yield ()
+                    ```
+                    ---
+
+                    Now, we can use patched logic contextually:
+
+                    ```scala [1-15]
+                    patchedLogic[IO] // OK
+                    // Calling A
+                    // Calling B
+                    // User = ..., Account = ...
+
+                    patchedLogic[ReaderT[IO, HttpRequest, *]] // OK
+                    // [CTX = HttpRequest(...)] Calling A
+                    // [CTX = HttpRequest(...)] Calling B
+                    // [CTX = HttpRequest(...)] User = ..., Account = ...
+                    ```
+
+                    Boom! Magic of polymorphism
+
+                    ---
+
+                    ### With Local
+
+                    ```scala [1-15]
+                    trait WithLocal[F[_], Ctx] extends WithContext[F, Ctx] {
+                      def context: F[Ctx]
+                      def local[A](fa: F[A])(f: Ctx => Ctx): F[A]
+                    }
+                    ```
+
+                    Allows local modifications of context for some `F[A]`
+
+                    ---
+
+                    ```scala [1-15]
+                    def localTest[F[_]: Console: Monad](implicit
+                      withLocal: WithLocal[F, Ctx]
+                    ): F[Unit] =
+                      for {
+                        _ <- Console[F].putStrLn("No Modifications")
+                        _ <- withLocal.local(
+                         Console[F].putStrLn("With Modifications")
+                        )(_.copy(request = "123"))
+                      }
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    localTest[ReaderT[IO, HttpRequest, *]] // OK
+                    // [CTX = HttpRequest(456)] No Modifications
+                    // [CTX = HttpRequest(123)] With Modifications
+                    ```
+
+                    ---
+
+                    ### With Provide
+
+                    ```scala [1-15]
+                    trait WithProvide[F[_], G[_], Ctx] {
+                      def runContext[A](ga: F[A])(ctx: Ctx): G[A]
+                    }
+                    ```
+
+                    Allows running computations with some defined context
+
+                    ---
+
+                    Let's define` WithProvide` for `ReaderT`
+
+                    ```scala [1-15]
+                    implicit def readerT[F[_], Ctx]:
+                      WithContext[ReaderT[F, Ctx, *], F, Ctx] =
+                      new WithContext[ReaderT[F, Ctx, *], F, Ctx] {
+                        def runContext[A](fa: ReaderT[F, Ctx, A])
+                          (ctx: Ctx): F[A] =
+                          fa.run(ctx)
+                      }
+                    ```
+
+                </textarea>
+            </section>
+        </section>
+        <section>
+            <section data-markdown>
+                <textarea data-template>
+                    ### Logging
+
+                    ---
+
+                    `tofu-logging` defines several abstractions for writings logs:
+
+                    - `LoggedValue`
+                    - `Loggable`
+                    - `Logging`
+
+                    ---
+
+                    ### LoggedValue
+
+                    `LoggedValue` is an internal representation of the log.
+
+                    In other words, the structure that will be written to log
+
+                    ---
+
+                    ### Loggable
+
+                    `Loggable` is a typeclass that defines how we log the value:
+
+                    ```scala [1-15]
+                    trait Loggable[A] {
+                      def logShow(a: A): String
+                      def fields[I, V, R, S](a: A, i: I)(implicit
+                        r: LogRenderer[I, V, R, S]
+                      ): R
+                      def putValue[I, V, R, S](a: A, v: V)(implicit
+                        r: LogRenderer[I, V, R, S]
+                      ): S
+                    }
+                    ```
+
+                    ---
+
+                    - `logShow` controls what will be displayed in the _message_ field
+                    - `putValue` controls what field value will be added to log
+                    - `fields` controls what additional fields will be added to log
+
+                    ---
+
+                    `Loggable` is too generic, we usually use `DictLoggable`
+
+                    ```scala [1-15]
+                    trait DictLoggable[A] extends Loggable[A] {
+                      def logShow(a: A): String
+                      def fields[I, V, R, S](a: A, i: I)(implicit
+                        r: LogRenderer[I, V, R, S]
+                      ): R
+                    }
+                    ```
+
+                    ---
+
+                    ```scala [1-15]
+                    import cats.syntax.semigroup._
+
+                    case class User(id: UUID, username: String)
+
+                    object User {
+                      implicit val loggable: Loggable[User] =
+                        new DictLoggable[User] {
+                          def logShow(a: User): String = a.username
+                          def fields[I, V, R, S](a: A, i: I)(implicit
+                            r: LogRenderer[I, V, R, S]
+                          ): R =
+                            r.addString("id", a.id.toString, i) |+|
+                              r.addString("username", a.username, i)
+                        }
+                    }
+                    ```
+
+                    ---
+
+                    Ok, but how to actually write logs?
+
+                    Use `Logging`:
+
+                    ```scala [1-15]
+                    trait Logging[F[_]] {
+                      def write(level: Level, message: String, values: LoggedValue*): F[Unit]
+                    }
+                    ```
+
+                    ---
+
+                    `tofu-logging` also introduces special interpolation syntax for convenience:
+
+                    ```scala[1-15]
+                    import tofu.syntax.logging._
+
+                    def program[F[_]: Logging: Monad]: F[Unit] =
+                      for {
+                        _ <- trace"Calling A"
+                        user <- goToServiceA[F]
+                        _ <- info"Called A - user = $user"
+                      } yield ()
+                    ```
+
+                    ---
+
+                    ```json
+                    {
+                      "level": "TRACE",
+                      "message": "Calling A",
+                      ...
+                    }
+                    {
+                      "level": "INFO",
+                      "message": "Called A - user = petya",
+                      "id": "23fdff68-ba41-41bb-9dd0-080a310ffdd7",
+                      "username": "petya",
+                      ...
+                    }
+                    ```
+
+                    ---
+
+                    All values that are interpolated must have an instance of `Loggable`. We want only defined
+                    values to be logged.
+
+                    ```scala[1-15]
+                    import tofu.syntax.logging._
+
+                    def program[F[_]: Logging: Monad]: F[Unit] =
+                      for {
+                        _ <- trace"Calling B"
+                        account <- goToServiceB[F]
+                        _ <- info"Called B - account = $account"
+                      } yield ()
+                    // Compilation failure. No Logging for Account
+                    ```
+
+                </textarea>
+            </section>
+        </section>
+    </div>
+</div>
+
+
+</body>
+</html>
